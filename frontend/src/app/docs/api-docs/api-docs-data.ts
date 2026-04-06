@@ -12243,6 +12243,45 @@ export const restApiDocsData = [
     options: { officialOnly: true },
     type: 'endpoint',
     category: 'accelerator-private',
+    httpRequestMethod: 'POST',
+    fragment: 'accelerator-top-up',
+    title: 'POST Top Up',
+    description: {
+      default: '<p>Top up the user\'s accelerator balance with a Bitcoin payment.</p>'
+    },
+    urlString: '/v1/services/payments/bitcoin/top-up',
+    showConditions: [''],
+    showJsExamples: showJsExamplesDefaultFalse,
+    codeExample: {
+      default: {
+        codeTemplate: {
+          curl: `%{1}" "[[hostname]][[baseNetworkUrl]]/api/v1/services/payments/bitcoin/top-up`,
+          commonJS: ``,
+          esModule: ``
+        },
+        codeSampleMainnet: {
+          esModule: [],
+          commonJS: [],
+          curl: ['amount=1000000'],
+          headers: 'X-Mempool-Auth: stacksats',
+          response: `{
+  "btcpayInvoiceId": "GiWYeSWjeUPDTjgx1cP955",
+  "btcDue": "0.01",
+  "addresses": {
+    "BTC-LN": "lnbc10m1p5axp8cpp5w7ulrexy5zvy...",
+    "BTC": "bc1q7rx4gf5x2l3w973eazctg73s08ll2ascxssymannlu95qzq8n4cqqn5xy7",
+    "BTC-LNURL": null
+  },
+  "expirationTime": 1775437947
+}`,
+        },
+      }
+    }
+  },
+  {
+    options: { officialOnly: true },
+    type: 'endpoint',
+    category: 'accelerator-private',
     httpRequestMethod: 'GET',
     fragment: 'accelerator-balance',
     title: 'GET Available Balance',
