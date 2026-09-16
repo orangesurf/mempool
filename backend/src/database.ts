@@ -7,6 +7,11 @@ import logger, { LogLevel } from './logger';
 import { FieldPacket, OkPacket, PoolOptions, ResultSetHeader, RowDataPacket } from 'mysql2/typings/mysql';
 import { execSync } from 'child_process';
 
+interface TransactionContext {
+  connection: PoolConnection;
+  active: boolean; // false once committed or rolled back, so work that outlives the transaction uses the pool again
+}
+
  class DB {
   constructor() {
     if (config.DATABASE.SOCKET !== '') {
@@ -16,7 +21,7 @@ import { execSync } from 'child_process';
     }
   }
   private pool: Pool | null = null;
-  private transactionContext = new AsyncLocalStorage<PoolConnection>();
+  private transactionContext = new AsyncLocalStorage<TransactionContext>();
   private poolConfig: PoolOptions = {
     port: config.DATABASE.PORT,
     database: config.DATABASE.DATABASE,
@@ -54,7 +59,7 @@ import { execSync } from 'child_process';
         }, hardTimeout);
 
         // Use a specific connection if provided, else the enclosing $transaction's, else the pool
-        const boundConnection = connection ?? this.transactionContext.getStore();
+        const boundConnection = connection ?? this.getTransactionConnection();
         const connectionPromise = boundConnection ? Promise.resolve(boundConnection) : this.getPool();
         connectionPromise.then((pool: PoolConnection | Pool) => {
           return pool.query(query, params) as Promise<[T, FieldPacket[]]>;
@@ -71,7 +76,7 @@ import { execSync } from 'child_process';
       });
     } else {
       try {
-        const pool = connection ?? this.transactionContext.getStore() ?? await this.getPool();
+        const pool = connection ?? this.getTransactionConnection() ?? await this.getPool();
         return pool.query(query, params);
       } catch (e) {
         if (errorLogLevel !== 'silent') {
@@ -96,7 +101,7 @@ import { execSync } from 'child_process';
   public async $atomicQuery<T extends RowDataPacket[][] | RowDataPacket[] | OkPacket |
     OkPacket[] | ResultSetHeader>(queries: { query, params }[], errorLogLevel: LogLevel | 'silent' = 'debug'): Promise<[T, FieldPacket[]][]>
   {
-    if (this.transactionContext.getStore()) {
+    if (this.getTransactionConnection()) {
       // inside a $transaction: run on its connection, it commits or rolls back as a whole
       try {
         const results: [T, FieldPacket[]][] = [];
@@ -139,23 +144,31 @@ import { execSync } from 'child_process';
   }
 
 
+  /** the connection of the enclosing, still open, $transaction (if any) */
+  private getTransactionConnection(): PoolConnection | undefined {
+    const context = this.transactionContext.getStore();
+    return context?.active ? context.connection : undefined;
+  }
+
   /**
    * Run `fn` inside a database transaction on a dedicated connection. Every DB.query issued
    * while `fn` runs, directly or through any call chain, uses that connection, so the
    * transaction, its statements and the commit or rollback can't land on different pooled
-   * connections. Nested calls join the enclosing transaction.
+   * connections. Nested calls join the enclosing transaction. Work started by `fn` that
+   * outlives the transaction (a `void` call) goes back to the pool once it has ended.
    *
    * @asyncUnsafe
    */
   public async $transaction<T>(fn: () => Promise<T>): Promise<T> {
-    if (this.transactionContext.getStore()) {
+    if (this.getTransactionConnection()) {
       return fn();
     }
     const pool = await this.getPool();
     const connection = await pool.getConnection();
+    const context: TransactionContext = { connection, active: true };
     try {
       await connection.beginTransaction();
-      const result = await this.transactionContext.run(connection, fn);
+      const result = await this.transactionContext.run(context, fn);
       await connection.commit();
       return result;
     } catch (e) {
@@ -166,6 +179,7 @@ import { execSync } from 'child_process';
       }
       throw e;
     } finally {
+      context.active = false;
       connection.release();
     }
   }

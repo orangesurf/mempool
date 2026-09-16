@@ -1367,7 +1367,7 @@ class DatabaseMigration {
         }
       });
     } catch (e) {
-      logger.err(`MIGRATIONS: schema update to version ${DatabaseMigration.currentVersion} failed and was rolled back`);
+      logger.err(`MIGRATIONS: schema update to version ${DatabaseMigration.currentVersion} failed. DDL statements commit implicitly, so the schema may be partially migrated`);
       throw e;
     }
   }

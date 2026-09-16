@@ -105,4 +105,23 @@ describe('DB.$transaction', () => {
       'conn4: release',
     ]);
   });
+
+  test('work started inside the callback that outlives the transaction goes back to the pool', async () => {
+    let releaseLateWork: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { releaseLateWork = resolve; });
+    let lateWork: Promise<void> = Promise.resolve();
+    await DB.$transaction(async () => {
+      await DB.query('UPDATE inside');
+      lateWork = (async () => { await gate; await DB.query('SELECT late'); })();
+    });
+    releaseLateWork();
+    await lateWork;
+    expect(state.log).toEqual([
+      'conn5: begin',
+      'conn5: UPDATE inside',
+      'conn5: commit',
+      'conn5: release',
+      'pool: SELECT late',
+    ]);
+  });
 });
