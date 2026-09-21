@@ -176,6 +176,11 @@
                 "glob": "*.css",
                 "input": ".theme-build",
                 "output": "/"
+              },
+              {
+                "glob": "btcutil.wasm",
+                "input": "node_modules/btcutil-js/dist",
+                "output": "/resources/"
               }
             ],
             "styles": [
@@ -190,7 +195,8 @@
             "namedChunks": true,
             "allowedCommonJsDependencies": [
               "qrcode"
-            ]
+            ],
+            "webWorkerTsConfig": "tsconfig.worker.json"
           },
           "configurations": {
             "production": {

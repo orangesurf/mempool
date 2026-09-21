@@ -1,0 +1,193 @@
+<div class="title-tx"><div class="send-heading">
+  <h2 class="text-start mb-0">Send with external signer</h2>
+  <span class="experimental-badge">EXPERIMENTAL</span>
+</div></div>
+<div class="box send-box">
+  <div class="send-caution">
+    This app never has private keys and never signs. Carefully verify every address and amount
+    on your external signer. Broadcasting reveals the transaction to this site's configured mempool API.
+  </div>
+
+    <div class="recipient-row mt-3" *ngFor="let recipient of model.sendRecipients; let i = index">
+      <div class="recipient-address">
+        <label class="form-label">Recipient address or BIP21 URI</label>
+        <input class="form-control" [(ngModel)]="recipient.target" (blur)="run('applyRecipientUri', recipient)"
+               autocomplete="off" spellcheck="false" placeholder="bc1… or bitcoin:…">
+      </div>
+      <div class="recipient-amount">
+        <label class="form-label">Amount (BTC)</label>
+        <input class="form-control" [(ngModel)]="recipient.amountBtc" [disabled]="model.sendMax"
+               inputmode="decimal" placeholder="0.001">
+      </div>
+      <button class="btn btn-sm btn-outline-secondary remove-recipient" type="button"
+              *ngIf="model.sendRecipients.length > 1" (click)="run('removeSendRecipient', i)">Remove</button>
+    </div>
+    <div class="send-actions-row mt-2">
+      <button class="btn btn-sm btn-outline-secondary" type="button" (click)="run('addSendRecipient')" [disabled]="model.sendMax">Add recipient</button>
+      <label class="form-check mb-0">
+        <input class="form-check-input" type="checkbox" [(ngModel)]="model.sendMax"
+               [disabled]="model.sendRecipients.length !== 1">
+        <span class="form-check-label">Max / sweep</span>
+      </label>
+    </div>
+
+    <div class="send-options mt-3">
+      <label><span class="form-label">Fee rate (sat/vB)</span>
+        <input class="form-control" type="number" min="0.1" step="0.1" [(ngModel)]="model.sendFeeRate">
+      </label>
+      <label><span class="form-label">Absolute locktime</span>
+        <input class="form-control" type="number" min="0" step="1" [(ngModel)]="model.sendLocktime">
+      </label>
+      <label class="form-check option-check">
+        <input class="form-check-input" type="checkbox" [(ngModel)]="model.sendRbf">
+        <span class="form-check-label">Opt in to RBF</span>
+      </label>
+    </div>
+    <label class="form-label mt-3">Optional OP_RETURN (UTF-8, 80 bytes max)</label>
+    <input class="form-control" [(ngModel)]="model.sendOpReturn" maxlength="80" autocomplete="off">
+
+    <label class="form-check mt-3">
+      <input class="form-check-input" type="checkbox" [(ngModel)]="model.sendManualCoins">
+      <span class="form-check-label">Hand-pick UTXOs instead of automatic coin selection</span>
+    </label>
+    <div class="coin-picker" *ngIf="model.sendManualCoins">
+      <label class="coin-picker-row" *ngFor="let utxo of model.sendSpendableUtxos; trackBy: model.trackByUtxo">
+        <input type="checkbox" [checked]="model.isSendCoinSelected(utxo)" (change)="run('toggleSendCoin', utxo)">
+        <span class="coin-outpoint">{{ utxo.txid | slice:0:10 }}…:{{ utxo.vout }}</span>
+        <app-amount [satoshis]="utxo.value"></app-amount>
+        <span class="text-muted">{{ model.labelFor('output', model.outpoint(utxo)) }}</span>
+      </label>
+    </div>
+    <p class="privacy-note text-muted mt-2">
+      Privacy: combining inputs links them on-chain; change is sent to the wallet's next internal
+      address and may reveal the payment pattern. Frozen UTXOs are never selected.
+    </p>
+
+    <button class="btn btn-primary" type="button" (click)="run('buildSendPsbt')"
+            [disabled]="model.psbtBuilding || !model.sendSpendableUtxos.length">
+      {{ model.psbtBuilding ? 'Building…' : 'Build unsigned PSBT' }}
+    </button>
+    <div class="alert alert-danger mt-3" *ngIf="model.psbtError">{{ model.psbtError }}</div>
+
+    <div class="psbt-export mt-4" *ngIf="model.builtPsbt as psbt">
+      <h3>Unsigned PSBT ready for external signing</h3>
+      <div class="psbt-summary">
+        <span>{{ psbt.selected.length }} input(s)</span>
+        <span><app-amount [satoshis]="psbt.fee"></app-amount> fee</span>
+        <span>{{ psbt.feeRate | number:'1.1-2' }} sat/vB</span>
+        <span>{{ psbt.vsize }} vB estimated</span>
+        <span *ngIf="psbt.changeValue">Change: <app-amount [satoshis]="psbt.changeValue"></app-amount></span>
+      </div>
+      <div class="export-buttons mt-2">
+        <button class="btn btn-sm btn-primary" type="button" (click)="run('downloadPsbt')">Download .psbt</button>
+        <button class="btn btn-sm btn-outline-secondary" type="button" (click)="run('togglePsbtQrExport')">
+          {{ model.psbtQrExportVisible ? 'Hide animated QR' : 'Show as animated QR' }}
+        </button>
+        <span class="copy-field">Base64 <app-clipboard [text]="psbt.base64" [leftPadding]="false"></app-clipboard></span>
+        <span class="copy-field">Hex <app-clipboard [text]="psbt.hex" [leftPadding]="false"></app-clipboard></span>
+      </div>
+      <p class="text-muted mt-2 mb-0">Move this PSBT to your signer. No signature is created in this app.</p>
+
+      <div class="psbt-qr-export mt-3" *ngIf="model.psbtQrExportVisible && model.psbtQrExport as qr">
+        <div class="psbt-qr-settings">
+          <label><span class="form-label">Animated QR encoding</span>
+            <select class="form-control" [(ngModel)]="model.psbtQrEncoding"
+                    (ngModelChange)="run('changePsbtQrEncoding', $event)">
+              <option value="ur">UR crypto-psbt (recommended)</option>
+              <option value="bbqr">BBQr PSBT (Coldcard)</option>
+            </select>
+          </label>
+          <label *ngIf="qr.frames.length > 1">
+            <span class="form-label">Frame rate: {{ model.psbtQrFps }} fps</span>
+            <input class="form-range" type="range" min="1" max="8" step="1"
+                   [(ngModel)]="model.psbtQrFps" (ngModelChange)="run('changePsbtQrFrameRate')">
+          </label>
+        </div>
+        <div class="psbt-qr-stage">
+          <app-qrcode [size]="320" [data]="qr.frames[model.psbtQrFrameIndex]"></app-qrcode>
+        </div>
+        <div class="psbt-qr-status" aria-live="polite">
+          <strong>{{ model.psbtQrEncoding === 'ur' ? 'UR crypto-psbt' : 'BBQr PSBT' }}</strong>
+          <span>Frame {{ model.psbtQrFrameIndex + 1 }} / {{ qr.frames.length }}</span>
+          <span *ngIf="model.psbtQrEncoding === 'ur'">{{ qr.partCount }} source parts · {{ qr.frameBudget }} bytes/fragment</span>
+          <span *ngIf="model.psbtQrEncoding === 'bbqr'">QR version {{ qr.qrVersion }} · up to {{ qr.frameBudget }} payload bytes/frame</span>
+        </div>
+        <div class="psbt-qr-controls" *ngIf="qr.frames.length > 1">
+          <button class="btn btn-sm btn-outline-secondary" type="button" (click)="run('togglePsbtQrPlayback')">
+            {{ model.psbtQrPlaying ? 'Pause' : 'Play' }}
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" type="button" (click)="run('nextPsbtQrFrame')">Next frame</button>
+        </div>
+        <p class="text-muted mt-2 mb-0" *ngIf="model.psbtQrReducedMotion">
+          Reduced motion is enabled, so playback starts paused. Use Play or Next frame when ready.
+        </p>
+      </div>
+    </div>
+
+    <div class="signed-import mt-4">
+      <h3>Import signed PSBT</h3>
+      <div class="signed-import-actions mb-2">
+        <label class="btn btn-sm btn-outline-secondary mb-0">
+          Choose signed .psbt
+          <input type="file" accept=".psbt,application/psbt" hidden (change)="run('importSignedPsbtFile', $event)">
+        </label>
+        <button class="btn btn-sm btn-outline-secondary" type="button"
+                *ngIf="!model.psbtQrScanning" (click)="startQrScan()">Scan animated QR</button>
+      </div>
+      <div class="psbt-qr-scanner mb-3" *ngIf="model.psbtQrScanning || model.psbtQrScanProgress || model.psbtQrScanError">
+        <div class="psbt-qr-video" *ngIf="model.psbtQrScanning"><video #psbtQrVideo muted playsinline></video></div>
+        <div class="psbt-qr-scan-progress" *ngIf="model.psbtQrScanProgress as scan">
+          <div class="progress">
+            <div class="progress-bar" role="progressbar" [style.width.%]="scan.percent * 100"
+                 [attr.aria-valuenow]="scan.percent * 100" aria-valuemin="0" aria-valuemax="100"></div>
+          </div>
+          <span>{{ scan.protocol === 'ur' ? 'UR' : (scan.protocol === 'bbqr' ? 'BBQr' : 'Single-frame PSBT') }}</span>
+          <span>{{ scan.received }} / {{ scan.needed }} parts received</span>
+        </div>
+        <div class="alert alert-danger mt-2 mb-2" *ngIf="model.psbtQrScanError">{{ model.psbtQrScanError }}</div>
+        <div class="psbt-qr-controls">
+          <button class="btn btn-sm btn-outline-secondary" type="button"
+                  *ngIf="model.psbtQrScanning" (click)="run('stopSignedPsbtQrScan')">Stop camera</button>
+          <button class="btn btn-sm btn-outline-secondary" type="button"
+                  *ngIf="model.psbtQrScanning && model.psbtQrScanProgress" (click)="run('resetSignedPsbtQrScan')">Reset parts</button>
+        </div>
+      </div>
+      <textarea class="form-control" rows="4" [(ngModel)]="model.signedPsbtInput"
+                placeholder="Paste signed PSBT as base64 or hex" spellcheck="false"></textarea>
+      <button class="btn btn-sm btn-primary mt-2" type="button" (click)="run('finalizeSignedPsbt')"
+              [disabled]="!model.signedPsbtInput.trim()">Finalize and preview</button>
+    </div>
+
+    <div class="signed-preview mt-4" *ngIf="model.signedPreview as preview">
+      <h3>Decoded transaction preview</h3>
+      <div class="preview-metrics">
+        <span>Fee: <app-amount [satoshis]="preview.fee"></app-amount></span>
+        <span>{{ preview.feeRate | number:'1.1-2' }} sat/vB</span>
+        <span>{{ preview.vsize }} vB</span>
+      </div>
+      <h4>Inputs</h4>
+      <div class="preview-row" *ngFor="let input of preview.inputs">
+        <span class="preview-address">{{ input.address || (input.txid + ':' + input.vout) }}</span>
+        <app-amount [satoshis]="input.value"></app-amount>
+      </div>
+      <h4>Outputs</h4>
+      <div class="preview-row" *ngFor="let output of preview.outputs">
+        <span class="preview-address">{{ output.address || ('Script ' + output.script) }}</span>
+        <app-amount [satoshis]="output.value"></app-amount>
+      </div>
+      <div class="broadcast-gate mt-3" *ngIf="!model.broadcastTxid">
+        <label class="form-check">
+          <input class="form-check-input" type="checkbox" [(ngModel)]="model.broadcastConfirmed">
+          <span class="form-check-label">I reviewed every input, output, amount, and the fee above.</span>
+        </label>
+        <button class="btn btn-danger mt-2" type="button" (click)="run('broadcastSignedTransaction')"
+                [disabled]="!model.broadcastConfirmed || model.broadcasting">
+          {{ model.broadcasting ? 'Broadcasting…' : 'Confirm and broadcast transaction' }}
+        </button>
+      </div>
+      <div class="alert alert-danger mt-3" *ngIf="model.broadcastError">{{ model.broadcastError }}</div>
+      <div class="alert alert-success mt-3" *ngIf="model.broadcastTxid">
+        Broadcast transaction <a [routerLink]="['/tx/' | relativeUrl, model.broadcastTxid]">{{ model.broadcastTxid }}</a>.
+      </div>
+    </div>
+</div>

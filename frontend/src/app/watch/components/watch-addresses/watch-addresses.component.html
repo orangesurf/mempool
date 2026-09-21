@@ -1,0 +1,39 @@
+<div class="title-tx"><h2 class="text-start">Address explorer
+  <span class="badge bg-secondary ms-2">{{ model.visibleAddressRows.length }}</span>
+</h2></div>
+<div class="box">
+  <div class="explorer-controls">
+    <select class="form-control form-control-sm" [(ngModel)]="model.addressChainFilter">
+      <option value="all">Receive + change</option>
+      <option value="receive">Receive only</option>
+      <option value="change">Change only</option>
+    </select>
+    <label class="form-check mb-0">
+      <input class="form-check-input" type="checkbox" [(ngModel)]="model.hideEmptyAddresses">
+      <span class="form-check-label">Hide empty</span>
+    </label>
+  </div>
+  <p class="text-muted" *ngIf="!model.visibleAddressRows.length">No addresses match these filters.</p>
+  <div class="table-responsive" *ngIf="model.visibleAddressRows.length">
+    <table class="table table-borderless table-striped table-sm address-table">
+      <thead><tr><th>Address</th><th>Derivation</th><th class="text-end">Balance</th><th>Label</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let row of model.visibleAddressRows; trackBy: model.trackByAddress">
+          <td class="address-cell"><a [routerLink]="['/address/' | relativeUrl, row.derived.address]">{{ row.derived.address }}</a></td>
+          <td class="text-muted explorer-path">{{ row.path }}</td>
+          <td class="text-end"><app-amount [satoshis]="row.balance"></app-amount></td>
+          <td class="label-cell">
+            <input *ngIf="model.isEditingLabel('addr', row.derived.address)" class="form-control form-control-sm label-input"
+                   [(ngModel)]="model.labelEditor!.draft" maxlength="200" autocomplete="off" autofocus
+                   (blur)="run('saveLabelEdit')" (keyup.enter)="run('saveLabelEdit')" (keydown.escape)="run('cancelLabelEdit')">
+            <button *ngIf="!model.isEditingLabel('addr', row.derived.address)" class="inline-label-value"
+                    (click)="run('startLabelEdit', 'addr', row.derived.address)">
+              {{ model.labelFor('addr', row.derived.address) || 'Add label' }}
+            </button>
+          </td>
+          <td><span class="address-status">{{ row.used ? 'Used' : 'Unused' }}</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

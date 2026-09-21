@@ -1,0 +1,233 @@
+<div class="container-xl">
+
+  <div class="title-wrapper">
+    <h1 class="title" i18n="watch.title">Watch-only wallet</h1>
+  </div>
+
+  <!-- Unsupported network (e.g. Liquid: confidential transactions need blinding keys, not just an xpub) -->
+  <div *ngIf="networkUnsupported" class="alert alert-mempool">
+    <span i18n="watch.unsupported-network">Watch-only wallets are not available on this network.</span>
+  </div>
+
+  <ng-container *ngIf="!networkUnsupported">
+
+    <!-- ─────────────── Wallet switcher ─────────────── -->
+    <!-- Shown whenever there is at least one wallet. A dropdown selector: the toggle shows the
+         active wallet, the menu lists every wallet (a tick on the active one)
+         and ends with "Add wallet". Site-wide "is this mine?" highlighting already recognises
+         every wallet listed here. -->
+    <div class="wallet-switcher" *ngIf="hasWallets" ngbDropdown>
+      <button ngbDropdownToggle type="button"
+              class="btn btn-secondary dropdown-toggle wallet-switcher-toggle"
+              [disabled]="scanning">
+        <span class="wallet-switcher-label" *ngIf="viewingAll" i18n="watch.all-wallets">All wallets</span>
+        <span class="wallet-switcher-label" *ngIf="!viewingAll">{{ wallet?.label }}</span>
+        <span class="wallet-switcher-fingerprint" *ngIf="!viewingAll && wallet?.fingerprint">{{ wallet?.fingerprint | uppercase }}</span>
+      </button>
+      <div ngbDropdownMenu class="wallet-switcher-menu">
+        <!-- The aggregate of every wallet — only worth offering once there is more than one. -->
+        <ng-container *ngIf="canViewAll">
+          <button ngbDropdownItem type="button" class="wallet-switcher-item"
+                  [class.active]="viewingAll" [disabled]="scanning" (click)="showAll()">
+            <span class="check">
+              <fa-icon *ngIf="viewingAll" [icon]="['fas', 'check']" [fixedWidth]="true"></fa-icon>
+            </span>
+            <span class="wallet-switcher-label" i18n="watch.all-wallets">All wallets</span>
+          </button>
+          <div class="dropdown-divider"></div>
+        </ng-container>
+
+        <button ngbDropdownItem type="button" *ngFor="let w of wallets"
+                class="wallet-switcher-item"
+                [class.active]="!viewingAll && w.id === wallet?.id && !adding"
+                [disabled]="scanning"
+                (click)="switchTo(w.id)">
+          <span class="check">
+            <fa-icon *ngIf="!viewingAll && w.id === wallet?.id && !adding" [icon]="['fas', 'check']" [fixedWidth]="true"></fa-icon>
+          </span>
+          <span class="wallet-switcher-label">{{ w.label }}</span>
+          <span class="wallet-switcher-fingerprint" *ngIf="w.fingerprint">{{ w.fingerprint | uppercase }}</span>
+        </button>
+        <div class="dropdown-divider"></div>
+        <button ngbDropdownItem type="button" class="wallet-switcher-add"
+                [class.active]="adding" [disabled]="scanning" (click)="addWallet()">
+          + <ng-container i18n="watch.add-wallet">Add wallet</ng-container>
+        </button>
+      </div>
+    </div>
+
+    <!-- ─────────────── Import ─────────────── -->
+    <div class="box import-box" *ngIf="showImportForm">
+      <div>
+        <h2 class="card-title" *ngIf="!adding" i18n="watch.import-title">Import a wallet</h2>
+        <div class="d-flex justify-content-between align-items-center" *ngIf="adding">
+          <h2 class="card-title mb-0" i18n="watch.add-title">Add another wallet</h2>
+          <button class="btn btn-sm btn-outline-secondary" (click)="cancelAdd()" [disabled]="scanning" i18n="watch.cancel">Cancel</button>
+        </div>
+
+        <!-- ═══════════ Your wallet: one input, auto-detected ═══════════ -->
+        <section class="import-section">
+          <h3 class="section-heading" i18n="watch.section-wallet">Your wallet</h3>
+
+          <div class="form-group">
+            <label for="watch-label" i18n="watch.label">Label</label>
+            <input id="watch-label" type="text" class="form-control" [(ngModel)]="label" [disabled]="scanning">
+          </div>
+
+          <!-- The universal input accepts an extended public key or output descriptor. -->
+          <div class="form-group">
+            <label for="watch-key" i18n="watch.wallet-key">Key or descriptor</label>
+            <textarea id="watch-key" class="form-control" rows="3" spellcheck="false" autocomplete="off"
+                      [(ngModel)]="keyInput" [disabled]="scanning" (ngModelChange)="onKeyInput()"
+                      placeholder="xpub… / zpub… / wpkh([…]xpub…/<0;1>/*)"
+                      i18n-placeholder="watch.key-placeholder"></textarea>
+            <div class="wallet-file-row">
+              <button class="btn btn-sm btn-outline-secondary" type="button" (click)="walletFile.click()" [disabled]="scanning">Import wallet file</button>
+              <input #walletFile class="d-none" type="file" accept=".txt,.json,.wallet,application/json,text/plain" (change)="importWalletFile($event)">
+              <small class="text-muted" *ngIf="walletFileMessage">{{ walletFileMessage }}</small>
+            </div>
+            <small class="form-text detected-hint" *ngIf="detectedInputLabel">
+              <ng-container i18n="watch.detected">Detected:</ng-container>&nbsp;<strong>{{ detectedInputLabel }}</strong>
+            </small>
+            <small class="form-text text-muted" i18n="watch.import-help">
+              Everything is derived here, in your browser — your key is never sent to the server.
+            </small>
+          </div>
+        </section>
+
+        <!-- ═══════════ Data source ═══════════ -->
+        <section class="import-section">
+          <h3 class="section-heading" i18n="watch.section-source">Data source</h3>
+          <p class="section-hint text-muted" i18n="watch.section-source-hint">
+            Balance, history, and pending transactions are loaded from the mempool API.
+          </p>
+        </section>
+
+        <!-- ═══════════ Advanced options, collapsed ═══════════ -->
+        <details class="import-advanced">
+          <summary i18n="watch.more-options">Advanced options</summary>
+
+          <!-- Address type + gap limit for xpub / descriptor wallets. -->
+          <div class="row">
+            <div class="form-group col-md-6" *ngIf="needsScriptTypeHint">
+              <label for="watch-script" i18n="watch.script-type">Address type</label>
+              <select id="watch-script" class="form-control" [(ngModel)]="scriptTypeHint" [disabled]="scanning">
+                <option *ngFor="let t of scriptTypes" [value]="t.value">{{ t.label }} — {{ t.path }}</option>
+              </select>
+              <small class="form-text text-muted" i18n="watch.script-type-help">
+                A bare xpub doesn’t say which address type it uses.
+              </small>
+            </div>
+            <div class="form-group col-md-6" *ngIf="isDescriptorInput">
+              <label i18n="watch.detected-type">Address type</label>
+              <div class="detected-type">
+                {{ importScriptTypeName }}
+                <span class="badge-detected" i18n="watch.from-descriptor">from descriptor</span>
+              </div>
+            </div>
+            <div class="form-group col-md-6">
+              <label for="watch-gap" i18n="watch.gap-limit">Gap limit</label>
+              <input id="watch-gap" type="number" min="5" max="1000" class="form-control" [(ngModel)]="gapLimit" [disabled]="scanning">
+            </div>
+          </div>
+        </details>
+
+        <button class="btn btn-primary" (click)="import()"
+                [disabled]="scanning || !keyInput.trim()">
+          <ng-container *ngIf="!scanning" i18n="watch.import-button">Import</ng-container>
+          <ng-container *ngIf="scanning">
+            <span class="spinner-border spinner-border-sm me-1"></span>
+
+            <ng-container [ngSwitch]="progress?.phase">
+              <ng-container *ngSwitchCase="'deriving'" i18n="watch.deriving">Deriving addresses…</ng-container>
+              <ng-container *ngSwitchCase="'fetching'" i18n="watch.fetching">Loading history…</ng-container>
+              <ng-container *ngSwitchDefault i18n="watch.starting">Starting…</ng-container>
+            </ng-container>
+          </ng-container>
+        </button>
+
+        <p class="text-muted mt-2 mb-0" *ngIf="scanning && progress">
+          <small>
+            {{ progress.addressesDerived }} <ng-container i18n="watch.addresses-derived">addresses</ng-container>,
+            {{ progress.txsFound }} <ng-container i18n="watch.txs-found">transactions</ng-container>
+          </small>
+        </p>
+
+        <div class="alert alert-danger mt-3" *ngIf="error">{{ error }}</div>
+
+        <!-- Honest about what this does and does not buy. Overclaiming here would be
+             worse than not shipping the feature at all. -->
+        <hr>
+        <h3 class="privacy-heading" i18n="watch.privacy-title">What the server sees</h3>
+        <ul class="privacy-list">
+          <li>
+            <span class="tick">✓</span>
+            <span i18n="watch.privacy-good">
+              Your extended key <strong>never leaves this browser</strong>. It is not sent to
+              mempool.space, and the server cannot derive your future addresses.
+            </span>
+          </li>
+          <li>
+            <span class="cross">✗</span>
+            <span i18n="watch.privacy-bad">
+              To show your balance, your browser must <strong>ask the server about your
+              addresses</strong>. Those queries arrive together, from one IP — so the server can
+              tell they belong to one wallet. Deriving locally does not hide that.
+            </span>
+          </li>
+
+        </ul>
+        <p class="text-muted mb-0">
+          <small i18n="watch.privacy-storage">
+            The key is stored in this browser’s local storage so the wallet can extend itself as
+            you receive. Use “Forget wallet” to erase it.
+          </small>
+        </p>
+      </div>
+    </div>
+
+    <!-- Tabbed wallet dashboard -->
+    <ng-container *ngIf="showDashboard">
+      <ul ngbNav #walletNav="ngbNav" [(activeId)]="activeTab" [destroyOnHide]="false"
+          [animation]="false" class="nav-tabs watch-tabs" role="tablist">
+        <li [ngbNavItem]="'overview'" role="presentation">
+          <button ngbNavLink type="button" role="tab" i18n="watch.overview">Overview</button>
+          <ng-template ngbNavContent>
+            <app-watch-overview [model]="sectionModel" (action)="handleSectionAction($event)"></app-watch-overview>
+          </ng-template>
+        </li>
+        <li [ngbNavItem]="'transactions'" role="presentation">
+          <button ngbNavLink type="button" role="tab" i18n="watch.transactions">Transactions</button>
+          <ng-template ngbNavContent>
+            <app-watch-transactions [model]="sectionModel" (action)="handleSectionAction($event)"></app-watch-transactions>
+          </ng-template>
+        </li>
+        <li [ngbNavItem]="'utxos'" role="presentation">
+          <button ngbNavLink type="button" role="tab" i18n="watch.utxos">UTXOs</button>
+          <ng-template ngbNavContent>
+            <app-watch-utxos [model]="sectionModel" (action)="handleSectionAction($event)"></app-watch-utxos>
+          </ng-template>
+        </li>
+        <li [ngbNavItem]="'addresses'" *ngIf="!viewingAll" role="presentation">
+          <button ngbNavLink type="button" role="tab">Addresses</button>
+          <ng-template ngbNavContent>
+            <app-watch-addresses [model]="sectionModel" (action)="handleSectionAction($event)"></app-watch-addresses>
+          </ng-template>
+        </li>
+        <li [ngbNavItem]="'send'" *ngIf="!viewingAll" role="presentation">
+          <button ngbNavLink type="button" role="tab">Send</button>
+          <ng-template ngbNavContent>
+            <app-watch-send [model]="sectionModel" (action)="handleSectionAction($event)"></app-watch-send>
+          </ng-template>
+        </li>
+        <li [ngbNavItem]="'settings'" *ngIf="!viewingAll" role="presentation">
+          <button ngbNavLink type="button" role="tab">Settings</button>
+          <ng-template ngbNavContent>
+            <app-watch-settings [model]="sectionModel" (action)="handleSectionAction($event)"></app-watch-settings>
+          </ng-template>
+        </li>
+      </ul>
+      <div class="watch-tab-content" [ngbNavOutlet]="walletNav"></div>
+    </ng-container>
+  </ng-container>
+</div>

@@ -325,6 +325,42 @@ h2 {
 	margin-inline-end: 2em;
 }
 
+// ── inline transaction labels (editableLabels opt-in; watch-only wallet) ──
+.tx-inline-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	min-width: 0;
+	margin-inline-end: 1em;
+}
+.tx-label-text {
+	font-size: 0.85rem;
+	color: var(--transparent-fg);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 14rem;
+}
+.tx-label-edit {
+	background: none;
+	border: none;
+	padding: 0 0.25rem;
+	line-height: 1;
+	font-size: 0.8rem;
+	color: var(--transparent-fg);
+	cursor: pointer;
+
+	&:hover {
+		color: var(--fg);
+	}
+}
+.tx-label-input {
+	width: auto;
+	min-width: 9rem;
+	max-width: 16rem;
+	display: inline-block;
+}
+
 .vin-witness {
 	.witness-item {
 		overflow: hidden;	
@@ -420,4 +456,14 @@ h2 {
   0% { background-color: #653b9c; box-shadow: #ad7de57f 0px 0px 12px -2px; }
   50% { background-color: #8457bb; box-shadow: #ad7de5 0px 0px 18px -2px;}
   100% { background-color: #653b9c; box-shadow: #ad7de57f 0px 0px 12px -2px; }
+}
+// Wallet marker, sitting immediately left of the value in the amount cell.
+.wallet-tag {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.35rem;
+  color: var(--primary);
+  font-size: 0.85em;
+  cursor: help;
+  vertical-align: baseline;
 }

@@ -341,7 +341,9 @@ export class UtxoGraphComponent implements OnChanges, OnDestroy {
           ${valueStr}
           <br>
           ${utxo.status.confirmed
-            ? 'Confirmed ' + this.timeService.calculate(utxo.status.block_time, 'since', true, 1, 'minute').text
+            ? (utxo.status.block_time
+                ? 'Confirmed ' + this.timeService.calculate(utxo.status.block_time, 'since', true, 1, 'minute').text
+                : 'Confirmed')
             : utxo.status['accelerated']
               ? 'Accelerated'
               : 'Pending'
@@ -359,6 +361,11 @@ export class UtxoGraphComponent implements OnChanges, OnDestroy {
     if (utxo.status['accelerated']) {
       return colorToHex(defaultAuditColors.accelerated);
     } else if (utxo.status.confirmed) {
+      if (!utxo.status.block_time) {
+        // Confirmed but no block time (e.g. a source that only knows the output exists, not
+        // when) — age is unknown, so fall back to the oldest colour rather than compute NaN.
+        return oldColorHex;
+      }
       const age = Date.now() / 1000 - utxo.status.block_time;
       const oneHour = 60 * 60;
       const fourYears = 4 * 365 * 24 * 60 * 60;

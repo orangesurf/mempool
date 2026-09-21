@@ -6,6 +6,8 @@ import { switchMap, filter, catchError, map, tap } from 'rxjs/operators';
 import { Address, ChainStats, Transaction, Utxo, Vin } from '@interfaces/electrs.interface';
 import { WebsocketService } from '@app/services/websocket.service';
 import { StateService } from '@app/services/state.service';
+import { WalletService } from '@app/watch/services/wallet.service';
+import { DerivedAddress } from '@app/watch/watch.types';
 import { AudioService } from '@app/services/audio.service';
 import { ApiService } from '@app/services/api.service';
 import { of, merge, Subscription, Observable, forkJoin } from 'rxjs';
@@ -143,6 +145,7 @@ export class AddressComponent implements OnInit, OnDestroy {
   private lastTransactionTxId: string;
 
   constructor(
+    private walletService: WalletService,
     private route: ActivatedRoute,
     private electrsApiService: ElectrsApiService,
     private websocketService: WebsocketService,
@@ -152,6 +155,19 @@ export class AddressComponent implements OnInit, OnDestroy {
     private seoService: SeoService,
     private formBuilder: UntypedFormBuilder,
   ) { }
+
+  /** Set when a watch-only wallet is loaded and this address belongs to it. */
+  get walletEntry(): DerivedAddress | undefined {
+    if (!this.walletService.hasWallet || !this.addressString) {
+      return undefined;
+    }
+    return this.walletService.lookup(this.addressString);
+  }
+
+  /** e.g. "m/84'/0'/0'/0/7" — which key actually produced this address. */
+  get walletPath(): string | null {
+    return this.addressString ? this.walletService.derivationPath(this.addressString) : null;
+  }
 
   ngOnInit(): void {
     this.network = this.stateService.network;

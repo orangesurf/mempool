@@ -1,0 +1,14 @@
+.settings-table { max-width: 64rem; }
+.settings-table td:first-child { width: 12rem; color: var(--transparent-fg); }
+.settings-table td:last-child { word-break: break-word; }
+.mono, .descriptor { font-family: monospace; }
+.descriptor { display: block; color: var(--transparent-fg); font-size: .75rem; word-break: break-all; }
+.reveal { font-size: .8rem; }
+.settings-group {
+  padding: 1rem 0;
+  border-top: 1px solid var(--stat-box-bg);
+}
+.settings-group h3 { font-size: 1rem; }
+.settings-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: .35rem 0; }
+.danger-zone { margin-top: .5rem; }
+@media (max-width: 767px) { .settings-table td:first-child { width: auto; } }

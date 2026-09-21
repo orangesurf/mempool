@@ -103,6 +103,11 @@ const routes: Routes = [
         loadChildren: () => import('@components/block/block.module').then(m => m.BlockModule),
       },
       {
+        path: 'watch',
+        data: { networkSpecific: true, networks: ['bitcoin'] },
+        loadChildren: () => import('@app/watch/watch.module').then(m => m.WatchModule),
+      },
+      {
         path: 'docs',
         loadChildren: () => import('@app/docs/docs.module').then(m => m.DocsModule),
         data: { preload: true },

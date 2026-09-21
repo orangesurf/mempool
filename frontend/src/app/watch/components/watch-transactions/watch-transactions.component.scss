@@ -1,0 +1,31 @@
+.stat-label {
+  color: var(--transparent-fg);
+  font-size: .8rem;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+.transaction-label-control {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(10rem, 18rem);
+  align-items: center;
+  gap: .5rem 1rem;
+  margin-bottom: 1rem;
+  padding: .75rem;
+  border-radius: .35rem;
+  background: var(--stat-box-bg);
+}
+.transaction-label-control label { grid-column: 1 / -1; }
+.mono-select { font-family: monospace; font-size: .78rem; }
+.label-input { width: min(18rem, 100%); }
+.inline-label-value {
+  max-width: 18rem;
+  padding: .1rem 0;
+  overflow: hidden;
+  color: var(--primary);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 767px) { .transaction-label-control { grid-template-columns: 1fr; } }

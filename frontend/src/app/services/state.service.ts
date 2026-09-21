@@ -187,6 +187,10 @@ export class StateService {
   mempoolTxPosition$ = new BehaviorSubject<{ txid: string, position: MempoolPosition, cpfp: CpfpInfo | null, accelerationPositions?: AccelerationPosition[] }>(null);
   mempoolRemovedTransactions$ = new Subject<Transaction>();
   multiAddressTransactions$ = new Subject<{ [address: string]: { mempool: Transaction[], confirmed: Transaction[], removed: Transaction[] }}>();
+  // Emitted when the backend rejects a track-addresses/track-scriptpubkeys subscription for
+  // exceeding MAX_TRACKED_ADDRESSES. The server tracks nothing in that case, so a consumer
+  // that ignores this will wait forever for updates that never come.
+  trackAddressesError$ = new Subject<string>();
   blockTransactions$ = new Subject<Transaction>();
   walletTransactions$ = new Subject<Transaction[]>();
   isLoadingWebSocket$ = new ReplaySubject<boolean>(1);

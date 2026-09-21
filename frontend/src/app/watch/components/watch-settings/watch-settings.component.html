@@ -1,0 +1,64 @@
+<div class="title-tx"><h2 class="text-start" i18n="watch.details-title">Wallet settings</h2></div>
+<div class="box" *ngIf="model.wallet">
+  <table class="table table-borderless table-striped settings-table">
+    <tbody>
+      <tr>
+        <td i18n="watch.detail.address-type">Address type</td>
+        <td>{{ model.scriptTypeName }}<span class="text-muted" *ngIf="model.scriptTypeCode !== model.scriptTypeName"> · {{ model.scriptTypeCode }}</span></td>
+      </tr>
+      <tr *ngIf="model.derivationPathLabel">
+        <td i18n="watch.detail.path">Derivation path</td>
+        <td class="mono">{{ model.derivationPathLabel }}</td>
+      </tr>
+      <tr>
+        <td i18n="watch.detail.addresses">Addresses derived</td>
+        <td>
+          {{ model.wallet.addresses.length }}
+          <span class="text-muted">(<ng-container i18n="watch.detail.receive">receive</ng-container> {{ model.wallet.derivedCount[0] }},
+            <ng-container i18n="watch.detail.change">change</ng-container> {{ model.wallet.derivedCount[1] }})</span>
+        </td>
+      </tr>
+      <tr><td i18n="watch.detail.gap-limit">Gap limit</td><td>{{ model.wallet.gapLimit }}</td></tr>
+      <tr><td i18n="watch.detail.network">Network</td><td>{{ model.wallet.network }}</td></tr>
+      <tr>
+        <td i18n="watch.detail.descriptor">Descriptor</td>
+        <td>
+          <button class="btn btn-sm btn-link p-0 reveal" *ngIf="!model.showDescriptor"
+                  (click)="model.showDescriptor = true" i18n="watch.detail.reveal-descriptor">Show (contains your public key)</button>
+          <code class="descriptor" *ngIf="model.showDescriptor">{{ model.wallet.descriptor }}</code>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <section class="settings-group">
+    <h3 i18n="watch.labels.bip329">BIP-329 labels</h3>
+    <div class="settings-actions">
+      <button class="btn btn-sm btn-outline-secondary" type="button" (click)="labelFile.click()" i18n="watch.labels.import">Import labels</button>
+      <button class="btn btn-sm btn-outline-secondary" type="button" (click)="run('exportLabels')" i18n="watch.labels.export">Export labels</button>
+      <input #labelFile class="d-none" type="file" accept=".jsonl,application/jsonl,application/json"
+             (change)="run('importLabels', $event)">
+    </div>
+    <small class="text-muted" *ngIf="model.labelTransferMessage">{{ model.labelTransferMessage }}</small>
+  </section>
+
+  <section class="settings-group">
+    <h3>Wallet files and CSV</h3>
+    <div class="settings-actions">
+      <button class="btn btn-sm btn-outline-secondary" type="button" (click)="walletFile.click()">Import another wallet file</button>
+      <input #walletFile class="d-none" type="file" accept=".txt,.json,.wallet,application/json,text/plain"
+             (change)="run('beginWalletFileImport', $event)">
+      <button class="btn btn-sm btn-outline-secondary" (click)="run('exportDescriptor')">Output descriptor</button>
+      <button class="btn btn-sm btn-outline-secondary" (click)="run('exportSparrow')">Sparrow JSON</button>
+      <button class="btn btn-sm btn-outline-secondary" (click)="run('exportUtxosCsv')">UTXOs (CSV)</button>
+      <button class="btn btn-sm btn-outline-secondary" (click)="run('exportTransactionsCsv')" [disabled]="!model.transactions.length">Transactions (CSV)</button>
+    </div>
+    <small class="text-muted" *ngIf="model.walletFileMessage">{{ model.walletFileMessage }}</small>
+  </section>
+
+  <section class="settings-group danger-zone">
+    <h3>Local wallet data</h3>
+    <p class="text-muted mb-2">Removes this watch-only wallet and its local labels from this browser.</p>
+    <button class="btn btn-sm btn-outline-danger" (click)="run('forget')" [disabled]="model.scanning" i18n="watch.forget">Forget wallet</button>
+  </section>
+</div>

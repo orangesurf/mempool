@@ -5,6 +5,24 @@
     <a class="tx-link" [routerLink]="['/tx/' | relativeUrl, tx.txid]">
       <app-truncate [text]="tx.txid"></app-truncate>
     </a>
+    <!-- Opt-in inline label (watch-only wallet): a pencil next to the txid to add/edit its label. -->
+    <span class="tx-inline-label" *ngIf="editableLabels">
+      <ng-container *ngIf="editingLabelTxid !== tx.txid">
+        <span class="tx-label-text" *ngIf="txLabels[tx.txid]">{{ txLabels[tx.txid] }}</span>
+        <button type="button" class="tx-label-edit" (click)="beginLabelEdit(tx.txid, $event)"
+                [attr.aria-label]="txLabels[tx.txid] ? 'Edit label' : 'Add label'"
+                [title]="txLabels[tx.txid] ? 'Edit label' : 'Add label'" i18n-title="watch.labels.edit-tx">
+          <fa-icon [icon]="['fas', 'pen']" [fixedWidth]="true"></fa-icon>
+        </button>
+      </ng-container>
+      <input *ngIf="editingLabelTxid === tx.txid" class="tx-label-input form-control form-control-sm"
+             [(ngModel)]="labelDraft" maxlength="200" autocomplete="off" autofocus
+             placeholder="Label" i18n-placeholder="watch.labels.transaction"
+             (click)="$event.stopPropagation()"
+             (blur)="commitLabelEdit(tx.txid)"
+             (keyup.enter)="commitLabelEdit(tx.txid)"
+             (keydown.escape)="cancelLabelEdit(); $event.preventDefault()">
+    </span>
     <div>
       <ng-template [ngIf]="tx.status.confirmed"><app-timestamp [customFormat]="'yyyy-MM-dd HH:mm:ss'" [unixTime]="tx.status.block_time" [hideTimeSince]="true"></app-timestamp></ng-template>
       <ng-template [ngIf]="!tx.status.confirmed && tx.firstSeen">
@@ -28,7 +46,7 @@
             <ng-template ngFor let-vin let-vindex="index" [ngForOf]="tx.vin.slice(0, getVinLimit(tx))" [ngForTrackBy]="trackByIndexFn">
               <tr [ngClass]="{
                 'assetBox': (assetsMinimal && vin.prevout && assetsMinimal[vin.prevout.asset] && !vin.is_coinbase && vin.prevout.scriptpubkey_address && tx._unblinded) || inputIndex === vindex,
-                'highlight': this.addresses.length && ((vin.prevout?.scriptpubkey_type !== 'p2pk' && addresses.includes(vin.prevout?.scriptpubkey_address)) || this.addresses.includes(vin.prevout?.scriptpubkey.slice(2, -2))),
+                'highlight': highlightAddresses.length && ((vin.prevout?.scriptpubkey_type !== 'p2pk' && highlightAddresses.includes(vin.prevout?.scriptpubkey_address)) || highlightAddresses.includes(vin.prevout?.scriptpubkey.slice(2, -2))),
                 'sigged': selectedSig && selectedSig.txIndex === i && sigHighlights.vin[vindex],
               }">
                 <td class="arrow-td">
@@ -120,6 +138,7 @@
                   </div>
                 </td>
                 <td class="text-end nowrap amount" [class]="{large: tx.largeInput}">
+                  <ng-container *ngTemplateOutlet="walletTag; context: { $implicit: vin.prevout?.scriptpubkey_address }"></ng-container>
                   <button *ngIf="vin.isInscription" (click)="toggleOrdData(tx.txid, 'vin', vindex)" type="button" class="btn btn-sm badge badge-ord primary" style="margin-right: 10px;" i18n="transaction.inscription-tag">Inscription</button>
                   <ng-template [ngIf]="vin.prevout && vin.prevout.asset && vin.prevout.asset !== nativeAssetId" [ngIfElse]="defaultOutput">
                     <div *ngIf="assetsMinimal && assetsMinimal[vin.prevout.asset] else assetVinNotFound">
@@ -137,7 +156,7 @@
               </tr>
               <tr *ngIf="showOrdData[tx.txid + '-vin-' + vindex]?.show" [ngClass]="{
                 'assetBox': (assetsMinimal && vin.prevout && assetsMinimal[vin.prevout.asset] && !vin.is_coinbase && vin.prevout.scriptpubkey_address && tx._unblinded) || inputIndex === vindex,
-                'highlight': addresses?.length && (addresses.includes(vin.prevout?.scriptpubkey_address) || (vin.prevout?.scriptpubkey_type === 'p2pk' && addresses.includes(vin.prevout?.scriptpubkey.slice(2, -2)))),
+                'highlight': highlightAddresses.length && (highlightAddresses.includes(vin.prevout?.scriptpubkey_address) || (vin.prevout?.scriptpubkey_type === 'p2pk' && highlightAddresses.includes(vin.prevout?.scriptpubkey.slice(2, -2)))),
                 'sigged': selectedSig && selectedSig.txIndex === i && sigHighlights.vin[vindex],
               }">
                 <td></td>
@@ -325,7 +344,7 @@
             <ng-template ngFor let-vout let-vindex="index" [ngForOf]="tx.vout.slice(0, getVoutLimit(tx))" [ngForTrackBy]="trackByIndexFn">
               <tr [ngClass]="{
                 'assetBox': assetsMinimal && assetsMinimal[vout.asset] && vout.scriptpubkey_address && tx.vin && !tx.vin[0].is_coinbase && tx._unblinded || outputIndex === vindex,
-                'highlight': this.addresses.length && ((vout.scriptpubkey_type !== 'p2pk' && addresses.includes(vout.scriptpubkey_address)) || this.addresses.includes(vout.scriptpubkey.slice(2, -2))),
+                'highlight': highlightAddresses.length && ((vout.scriptpubkey_type !== 'p2pk' && highlightAddresses.includes(vout.scriptpubkey_address)) || highlightAddresses.includes(vout.scriptpubkey.slice(2, -2))),
                 'sigged': selectedSig && selectedSig.txIndex === i && sigHighlights.vout[vindex],
               }">
                 <td class="address-cell">
@@ -387,6 +406,7 @@
                   </ng-template>
                 </td>
                 <td class="text-end nowrap amount" [class]="{large: tx.largeOutput}">
+                  <ng-container *ngTemplateOutlet="walletTag; context: { $implicit: vout.scriptpubkey_address }"></ng-container>
                   <ng-template [ngIf]="vout.asset && vout.asset !== nativeAssetId" [ngIfElse]="defaultOutput">
                     <div *ngIf="assetsMinimal && assetsMinimal[vout.asset] else assetNotFound">
                       <ng-container *ngTemplateOutlet="assetBox; context:{ $implicit: vout }"></ng-container>
@@ -423,7 +443,7 @@
 
               <tr *ngIf="showOrdData[tx.txid + '-vout-' + vindex]?.show" [ngClass]="{
                 'assetBox': assetsMinimal && assetsMinimal[vout.asset] && vout.scriptpubkey_address && tx.vin && !tx.vin[0].is_coinbase && tx._unblinded || outputIndex === vindex,
-                'highlight': addresses?.length && (addresses.includes(vout.scriptpubkey_address) || (vout.scriptpubkey_type === 'p2pk' && addresses.includes(vout.scriptpubkey.slice(2, -2)))),
+                'highlight': highlightAddresses.length && (highlightAddresses.includes(vout.scriptpubkey_address) || (vout.scriptpubkey_type === 'p2pk' && highlightAddresses.includes(vout.scriptpubkey.slice(2, -2)))),
                 'sigged': selectedSig && selectedSig.txIndex === i && sigHighlights.vout[vindex],
               }">
                 <td colspan="3">
@@ -432,7 +452,7 @@
               </tr>
               <tr *ngIf="vout.scriptpubkey_type === 'op_return' && showFullOpReturnPreview[tx.txid + '-vout-' + vindex]" [ngClass]="{
                 'assetBox': assetsMinimal && assetsMinimal[vout.asset] && vout.scriptpubkey_address && tx.vin && !tx.vin[0].is_coinbase && tx._unblinded || outputIndex === vindex,
-                'highlight': addresses?.length && (addresses.includes(vout.scriptpubkey_address)),
+                'highlight': highlightAddresses.length && (highlightAddresses.includes(vout.scriptpubkey_address)),
                 'sigged': selectedSig && selectedSig.txIndex === i && sigHighlights.vout[vindex],
               }">
                 <td colspan="3" style="white-space: pre-line;">
@@ -602,4 +622,14 @@
       <td>{{ scriptPath.merkleBranches.length }}</td>
     </tr>
   </table>
+</ng-template>
+<!-- "This one is yours." Sits immediately left of the value, so it reads as part of the
+     amount rather than wrapping onto its own line under the address. Emits nothing unless a
+     watch-only wallet is loaded AND this address belongs to it, so ordinary page views are
+     unaffected. -->
+<ng-template #walletTag let-address>
+  <span class="wallet-tag" *ngIf="walletEntry(address) as entry"
+        [ngbTooltip]="walletTooltip(address)" placement="left">
+    <fa-icon [icon]="['fas', 'wallet']" [fixedWidth]="true"></fa-icon>
+  </span>
 </ng-template>

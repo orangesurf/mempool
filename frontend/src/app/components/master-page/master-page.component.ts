@@ -7,6 +7,8 @@ import { EnterpriseService } from '@app/services/enterprise.service';
 import { NavigationService } from '@app/services/navigation.service';
 import { MenuComponent } from '@components/menu/menu.component';
 import { StorageService } from '@app/services/storage.service';
+import { WalletService } from '@app/watch/services/wallet.service';
+import { fromMempoolNetwork } from '@app/watch/watch-key.utils';
 
 @Component({
   selector: 'app-master-page',
@@ -37,6 +39,7 @@ export class MasterPageComponent implements OnInit, OnDestroy {
 
   enterpriseInfo: any;
   enterpriseInfo$: Subscription;
+  private subscription = new Subscription();
 
   @ViewChild(MenuComponent)
   public menuComponent!: MenuComponent;
@@ -48,12 +51,26 @@ export class MasterPageComponent implements OnInit, OnDestroy {
     private navigationService: NavigationService,
     private storageService: StorageService,
     private router: Router,
+    private walletService: WalletService,
   ) { }
 
   ngOnInit(): void {
     this.env = this.stateService.env;
     this.connectionState$ = this.stateService.connectionState$;
     this.network$ = merge(of(''), this.stateService.networkChanged$);
+
+    // Rehydrate the watch-only wallet's address set so "this output is mine" highlighting
+    // works on any page, not just after visiting /watch. This reads a JSON blob from local
+    // storage and fills a Map — no derivation, no WASM.
+    // Seeded with the current value: networkChanged$ never emits on mainnet (see
+    // state.service.ts:152, :460), so subscribing alone would leave mainnet users with no
+    // restored wallet and therefore no highlighting.
+    this.subscription.add(merge(of(this.stateService.network), this.stateService.networkChanged$).subscribe((network) => {
+      const watchNetwork = fromMempoolNetwork(network);
+      if (watchNetwork) {
+        this.walletService.restore(watchNetwork);
+      }
+    }));
     this.urlLanguage = this.languageService.getLanguageForUrl();
     this.subdomain = this.enterpriseService.getSubdomain();
     this.navigationService.subnetPaths.subscribe((paths) => {
@@ -135,6 +152,7 @@ export class MasterPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.subscription.unsubscribe();
     if (this.enterpriseInfo$) {
       this.enterpriseInfo$.unsubscribe();
     }

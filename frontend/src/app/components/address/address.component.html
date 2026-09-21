@@ -12,6 +12,16 @@
         <app-clipboard [text]="addressString" [size]="isMobile ? 'large' : 'normal'"></app-clipboard>
       </app-truncate>
     </div>
+
+    <!-- Shown only when a watch-only wallet is loaded and this address belongs to it. The
+         derivation path is the useful part: it tells you which key produced this address. -->
+    <a *ngIf="walletEntry" class="wallet-badge" [routerLink]="['/watch' | relativeUrl]"
+       [title]="walletEntry.chain === 1 ? 'This is a change address in your wallet' : 'This is a receive address in your wallet'"
+       i18n-title="address.in-your-wallet-title">
+      <fa-icon [icon]="['fas', 'wallet']" [fixedWidth]="true"></fa-icon>
+      <span i18n="address.in-your-wallet">In your wallet</span>
+      <span class="wallet-path">{{ walletPath }}</span>
+    </a>
   </div>
 
   <div class="clearfix"></div>

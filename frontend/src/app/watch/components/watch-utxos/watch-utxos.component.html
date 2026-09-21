@@ -1,0 +1,53 @@
+<div class="title-tx"><h2 class="text-start">
+  <ng-container i18n="watch.utxos">Unspent outputs</ng-container>
+  <span class="badge bg-secondary ms-2">{{ model.utxos.length }}</span>
+</h2></div>
+<div class="box">
+  <p class="text-muted" *ngIf="!model.utxos.length" i18n="watch.no-utxos">This wallet has no unspent outputs.</p>
+  <div class="utxo-bubble-graph mb-3" *ngIf="model.utxos.length">
+    <app-utxo-graph [utxos]="model.graphUtxos" [widget]="true" [height]="300"></app-utxo-graph>
+  </div>
+  <div class="table-responsive" *ngIf="model.utxos.length">
+    <table class="table table-borderless table-striped table-sm">
+      <thead><tr>
+        <th i18n="watch.utxo-output">Output</th>
+        <th i18n="watch.utxo-address">Address</th>
+        <th i18n="watch.utxo-path">Path</th>
+        <th i18n="watch.labels.label">Label</th>
+        <th class="text-end" i18n="watch.utxo-value">Value</th>
+        <th class="text-end" i18n="watch.coin-control">Coin control</th>
+      </tr></thead>
+      <tbody>
+        <tr *ngFor="let utxo of model.utxos; trackBy: model.trackByUtxo" [class.frozen-utxo]="model.isFrozen(utxo)">
+          <td>
+            <a [routerLink]="['/tx/' | relativeUrl, utxo.txid]"><app-truncate [text]="utxo.txid" [lastChars]="6"></app-truncate></a>
+            <span class="text-muted">:{{ utxo.vout }}</span>
+          </td>
+          <td><a [routerLink]="['/address/' | relativeUrl, utxo.address]"><app-truncate [text]="utxo.address" [lastChars]="6"></app-truncate></a></td>
+          <td class="text-muted">{{ model.derivationPath(utxo) }}</td>
+          <td class="label-cell">
+            <input *ngIf="model.isEditingLabel('output', model.outpoint(utxo))" class="form-control form-control-sm label-input"
+                   [(ngModel)]="model.labelEditor!.draft" maxlength="200" autocomplete="off" autofocus
+                   (blur)="run('saveLabelEdit')" (keyup.enter)="run('saveLabelEdit')"
+                   (keydown.escape)="run('cancelLabelEdit'); $event.preventDefault()">
+            <button *ngIf="!model.isEditingLabel('output', model.outpoint(utxo))" type="button"
+                    class="inline-label-value" (click)="run('startLabelEdit', 'output', model.outpoint(utxo))">
+              {{ model.labelFor('output', model.outpoint(utxo)) || 'Add label' }}
+            </button>
+          </td>
+          <td class="text-end">
+            <app-amount [satoshis]="utxo.value"></app-amount>
+            <span class="badge bg-warning ms-1" *ngIf="!utxo.confirmed" i18n="watch.unconfirmed">unconfirmed</span>
+          </td>
+          <td class="text-end coin-control-cell">
+            <span class="frozen-badge" *ngIf="model.isFrozen(utxo)" i18n="watch.frozen">Frozen</span>
+            <button class="btn btn-sm btn-outline-secondary" type="button" (click)="run('toggleFrozen', utxo)">
+              <ng-container *ngIf="!model.isFrozen(utxo)" i18n="watch.freeze">Freeze</ng-container>
+              <ng-container *ngIf="model.isFrozen(utxo)" i18n="watch.unfreeze">Unfreeze</ng-container>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -1,0 +1,90 @@
+.send-heading, .send-actions-row, .export-buttons, .psbt-summary, .preview-metrics {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+.send-heading { justify-content: space-between; }
+.experimental-badge {
+  padding: .2rem .55rem;
+  border: 1px solid var(--primary);
+  border-radius: .25rem;
+  color: var(--primary);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+.send-caution, .psbt-export, .signed-import, .signed-preview, .coin-picker {
+  margin-top: .75rem;
+  padding: .85rem;
+  border: 1px solid var(--stat-box-bg);
+  border-radius: .25rem;
+  background: var(--secondary);
+}
+.recipient-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(9rem, .28fr) auto;
+  gap: .75rem;
+  align-items: end;
+}
+.remove-recipient { margin-bottom: .1rem; }
+.send-options {
+  display: grid;
+  grid-template-columns: minmax(8rem, .25fr) minmax(8rem, .25fr) auto;
+  gap: .75rem;
+  align-items: end;
+}
+.option-check { padding-bottom: .55rem; }
+.coin-picker { max-height: 15rem; overflow: auto; }
+.coin-picker-row, .preview-row {
+  display: grid;
+  grid-template-columns: auto minmax(10rem, 1fr) auto minmax(0, .5fr);
+  gap: .65rem;
+  align-items: center;
+  padding: .35rem 0;
+}
+.coin-outpoint, .preview-address { font-family: monospace; overflow-wrap: anywhere; }
+.privacy-note { font-size: .82rem; }
+.copy-field { display: inline-flex; align-items: center; gap: .25rem; }
+.psbt-qr-export, .psbt-qr-scanner {
+  padding: .85rem;
+  border-radius: .35rem;
+  background: var(--stat-box-bg);
+}
+.psbt-qr-settings {
+  display: grid;
+  grid-template-columns: minmax(13rem, 1fr) minmax(11rem, .75fr);
+  gap: .75rem;
+  align-items: end;
+}
+.psbt-qr-stage { display: flex; justify-content: center; max-width: 100%; margin: 1rem auto; overflow: auto; }
+.psbt-qr-status, .psbt-qr-scan-progress, .signed-import-actions, .psbt-qr-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+.psbt-qr-status, .psbt-qr-scan-progress { color: var(--transparent-fg); font-size: .8rem; }
+.psbt-qr-controls { margin-top: .75rem; }
+.psbt-qr-video {
+  max-width: 32rem;
+  margin: 0 auto .75rem;
+  overflow: hidden;
+  border-radius: .35rem;
+  background: var(--box-bg);
+}
+.psbt-qr-video video { display: block; width: 100%; min-height: 14rem; object-fit: cover; }
+.psbt-qr-scan-progress .progress { flex: 1 1 10rem; height: .35rem; margin: 0; background: var(--box-bg); }
+.psbt-qr-scan-progress .progress-bar { background: var(--primary); }
+.signed-preview h4 { margin-top: 1rem; font-size: .9rem; color: var(--transparent-fg); }
+.preview-row { grid-template-columns: minmax(0, 1fr) auto; border-bottom: 1px solid var(--stat-box-bg); }
+textarea.form-control { font-family: monospace; font-size: .85rem; word-break: break-all; }
+@media (max-width: 767px) {
+  .recipient-row, .send-options, .psbt-qr-settings { grid-template-columns: 1fr; }
+  .remove-recipient { justify-self: start; }
+  .coin-picker-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .coin-picker-row .text-muted { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .psbt-qr-scan-progress .progress-bar { transition: none; }
+}

@@ -1,0 +1,25 @@
+.label-cell { min-width: 10rem; }
+.label-input { width: min(18rem, 100%); }
+.inline-label-value {
+  max-width: 18rem;
+  padding: .1rem 0;
+  overflow: hidden;
+  color: var(--primary);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.frozen-utxo { background: var(--active-bg); opacity: .72; }
+.frozen-badge {
+  display: inline-block;
+  margin-right: .4rem;
+  padding: .15rem .45rem;
+  border-radius: .5rem;
+  color: var(--fg);
+  background: var(--secondary);
+  font-size: .7rem;
+  font-weight: 600;
+}
+.coin-control-cell { white-space: nowrap; }

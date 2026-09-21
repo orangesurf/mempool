@@ -1,0 +1,151 @@
+<div class="box">
+  <div class="d-flex justify-content-between align-items-start flex-wrap">
+    <div>
+      <ng-container *ngIf="model.viewingAll">
+        <h2 class="section-title mb-0" i18n="watch.all-wallets">All wallets</h2>
+        <div class="wallet-identity">
+          <span class="identity-label">
+            <ng-container i18n="watch.all-wallets-count">{{ model.loadedWalletCount }} of {{ model.wallets.length }} wallets</ng-container>
+          </span>
+        </div>
+      </ng-container>
+
+      <ng-container *ngIf="!model.viewingAll && model.wallet">
+        <div class="wallet-title" *ngIf="!model.editingLabel">
+          <h2 class="section-title mb-0">{{ model.wallet.label }}</h2>
+          <button class="btn btn-sm btn-link rename-btn" (click)="startRename()"
+                  [disabled]="model.scanning" title="Rename wallet" i18n-title="watch.rename">
+            <fa-icon [icon]="['fas', 'pen']" [fixedWidth]="true"></fa-icon>
+          </button>
+        </div>
+        <div class="wallet-rename" *ngIf="model.editingLabel">
+          <input #renameInput type="text" class="form-control form-control-sm rename-input"
+                 [(ngModel)]="model.labelDraft" (keyup.enter)="run('saveRename')" (keyup.escape)="run('cancelRename')"
+                 maxlength="60" autocomplete="off">
+          <button class="btn btn-sm btn-primary" (click)="run('saveRename')" i18n="watch.rename-save">Save</button>
+          <button class="btn btn-sm btn-outline-secondary" (click)="run('cancelRename')" i18n="watch.cancel">Cancel</button>
+        </div>
+        <div class="wallet-identity" *ngIf="model.wallet.fingerprint">
+          <span class="identity-label" *ngIf="model.wallet.fingerprintIsMaster" i18n="watch.master-fingerprint">Master fingerprint</span>
+          <span class="identity-label" *ngIf="!model.wallet.fingerprintIsMaster" i18n="watch.key-fingerprint">Key fingerprint</span>
+          <span class="fingerprint">{{ model.wallet.fingerprint | uppercase }}</span>
+          <span class="identity-hint" *ngIf="!model.wallet.fingerprintIsMaster"
+                title="A bare extended key does not carry the master fingerprint. This is the fingerprint of the account key you pasted, so it will not match your hardware wallet’s XFP. Import a descriptor with key origin — wpkh([73c5da0a/84h/0h/0h]xpub…) — to see the master fingerprint."
+                i18n-title="watch.key-fingerprint-hint">?</span>
+        </div>
+      </ng-container>
+    </div>
+    <button class="btn btn-sm btn-outline-info" (click)="run('refresh')" [disabled]="model.scanning">
+      <span *ngIf="model.scanning" class="spinner-border spinner-border-sm me-1"></span>
+      <ng-container i18n="watch.refresh">Refresh</ng-container>
+    </button>
+  </div>
+
+  <div class="alert alert-danger mt-3" *ngIf="model.error">{{ model.error }}</div>
+  <div class="alert alert-info mt-3" *ngIf="model.liveTrackingDegraded" i18n="watch.degraded">
+    Live updates aren’t available for this wallet. It will refresh on each new block instead.
+  </div>
+  <div class="alert alert-warning mt-3" *ngIf="model.truncated" i18n="watch.truncated">
+    This wallet has too much history to load completely in the browser. The balance and
+    transactions are <strong>incomplete</strong>.
+  </div>
+  <table class="table table-borderless table-striped wallet-stats mt-4">
+    <tbody>
+      <tr>
+        <td i18n="watch.balance">Balance</td>
+        <td><app-amount [satoshis]="model.balance.total"></app-amount> <span class="fiat"><app-fiat [value]="model.balance.total"></app-fiat></span></td>
+      </tr>
+      <tr>
+        <td i18n="watch.confirmed">Confirmed</td>
+        <td><app-amount [satoshis]="model.balance.confirmed"></app-amount></td>
+      </tr>
+      <tr *ngIf="model.balance.pending !== 0">
+        <td i18n="watch.pending">Pending</td>
+        <td [class.text-success]="model.balance.pending > 0" [class.text-danger]="model.balance.pending < 0">
+          <app-amount [satoshis]="model.balance.pending" [addPlus]="true"></app-amount>
+        </td>
+      </tr>
+      <tr *ngIf="model.hasFrozenUtxos">
+        <td i18n="watch.spendable">Spendable</td>
+        <td>
+          <app-amount [satoshis]="model.spendableBalance"></app-amount>
+          <small class="text-muted ms-2"><ng-container i18n="watch.frozen-value">Frozen:</ng-container> <app-amount [satoshis]="model.frozenTotal"></app-amount></small>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="title-tx mt-4" *ngIf="!model.viewingAll"><h2 class="text-start" i18n="watch.next-address">Receive</h2></div>
+<div class="box" *ngIf="!model.viewingAll">
+  <ng-container *ngIf="model.currentReceiveAddress as receive">
+    <section class="receive-section">
+      <div class="receive-copy">
+        <div class="stat-label" i18n="watch.next-address">Next unused receive address</div>
+        <div class="address-line">
+          <a [routerLink]="['/address/' | relativeUrl, receive.address]" class="next-address">{{ receive.address }}</a>
+          <app-clipboard [text]="receive.address" [leftPadding]="false"></app-clipboard>
+        </div>
+        <div class="receive-path">{{ model.receiveDerivationPath(receive) }}</div>
+        <div class="inline-label">
+          <span class="stat-label" i18n="watch.labels.label">Label</span>
+          <input *ngIf="model.isEditingLabel('addr', receive.address)" class="form-control form-control-sm label-input"
+                 [(ngModel)]="model.labelEditor!.draft" maxlength="200" autocomplete="off" autofocus
+                 (blur)="run('saveLabelEdit')" (keyup.enter)="run('saveLabelEdit')"
+                 (keydown.escape)="run('cancelLabelEdit'); $event.preventDefault()">
+          <button *ngIf="!model.isEditingLabel('addr', receive.address)" type="button" class="inline-label-value"
+                  (click)="run('startLabelEdit', 'addr', receive.address)">
+            {{ model.labelFor('addr', receive.address) || 'Add label' }}
+          </button>
+        </div>
+      </div>
+      <div class="receive-qr"><app-qrcode [size]="180" [data]="receive.address"></app-qrcode></div>
+    </section>
+    <div class="receive-actions">
+      <button class="btn btn-sm btn-outline-secondary" type="button" (click)="run('advanceReceiveAddress')"
+              [disabled]="!model.upcomingReceiveAddresses.length" i18n="watch.receive.advance">Use next address</button>
+      <button class="btn btn-sm btn-link" type="button" (click)="model.showUpcomingReceive = !model.showUpcomingReceive">
+        <ng-container *ngIf="!model.showUpcomingReceive" i18n="watch.receive.show-upcoming">View upcoming</ng-container>
+        <ng-container *ngIf="model.showUpcomingReceive" i18n="watch.receive.hide-upcoming">Hide upcoming</ng-container>
+      </button>
+      <button class="btn btn-sm btn-link" type="button" (click)="model.showReceiveDetails = !model.showReceiveDetails">
+        <ng-container *ngIf="!model.showReceiveDetails" i18n="watch.receive.show-details">Show descriptor / script</ng-container>
+        <ng-container *ngIf="model.showReceiveDetails" i18n="watch.receive.hide-details">Hide descriptor / script</ng-container>
+      </button>
+    </div>
+    <div class="receive-details" *ngIf="model.showReceiveDetails">
+      <div class="stat-label" i18n="watch.receive.descriptor">Descriptor (contains your public key)</div>
+      <code>{{ model.wallet?.descriptor }}</code>
+      <div class="stat-label mt-2" i18n="watch.receive.scriptpubkey">scriptPubKey</div>
+      <code>{{ receive.scriptPubKey || 'Unavailable until the next refresh' }}</code>
+    </div>
+  </ng-container>
+
+  <div class="upcoming-addresses" *ngIf="model.showUpcomingReceive && model.upcomingReceiveAddresses.length">
+    <div class="stat-label" i18n="watch.receive.upcoming">Upcoming receive addresses</div>
+    <div class="upcoming-address" *ngFor="let address of model.upcomingReceiveAddresses">
+      <div class="upcoming-address-main">
+        <a [routerLink]="['/address/' | relativeUrl, address.address]" class="next-address">{{ address.address }}</a>
+        <app-clipboard [text]="address.address" [leftPadding]="false"></app-clipboard>
+        <span class="receive-path">{{ model.receiveDerivationPath(address) }}</span>
+      </div>
+      <div class="inline-label">
+        <input *ngIf="model.isEditingLabel('addr', address.address)" class="form-control form-control-sm label-input"
+               [(ngModel)]="model.labelEditor!.draft" maxlength="200" autocomplete="off" autofocus
+               (blur)="run('saveLabelEdit')" (keyup.enter)="run('saveLabelEdit')"
+               (keydown.escape)="run('cancelLabelEdit'); $event.preventDefault()">
+        <button *ngIf="!model.isEditingLabel('addr', address.address)" type="button" class="inline-label-value"
+                (click)="run('startLabelEdit', 'addr', address.address)">
+          {{ model.labelFor('addr', address.address) || 'Add label' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<ng-container *ngIf="model.transactions.length">
+  <div class="title-tx mt-4"><h2 class="text-start" i18n="watch.balance-history">Balance history</h2></div>
+  <div class="box">
+    <app-address-graph [addressSummary$]="model.walletSummary$" period="all" left="80" />
+  </div>
+</ng-container>
