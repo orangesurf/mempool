@@ -2,6 +2,13 @@
  * Load `$localize` onto the global scope - used if i18n tags appear in Angular templates.
  */
 import '@angular/localize/init';
+import { Buffer } from 'buffer';
+
+// `@ngraveio/bc-ur` registers its CBOR readers/writers when its lazy chunk is evaluated.
+// cbor-sync only registers the default binary writer when a global Buffer already exists,
+// so install the browser shim before /watch can import that chunk.
+const browserGlobal = globalThis as typeof globalThis & { Buffer?: typeof Buffer };
+browserGlobal.Buffer ??= Buffer;
 
 /***************************************************************************************************
  * `process` shim.

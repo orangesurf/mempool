@@ -107,6 +107,24 @@ describe('watch-only PSBT construction', () => {
     expect(decoded.outputs[1].taprootBip32Derivation?.[0].pathStr).toBe("m/86'/0'/0'/1/0");
   });
 
+  it('builds a valid no-change transaction when a change output would make it underfunded', () => {
+    const descriptor = `wpkh([73c5da0a/84h/0h/0h]${XPUB}/<0;1>/*)`;
+    const buildRequest = request(descriptor);
+    buildRequest.recipients[0].value = 99_750;
+    const built = buildWatchOnlyPsbt(btc, buildRequest);
+    expect(btc.psbt.decode(built.base64).unsignedTx.outputs.length).toBe(1);
+    expect(built.changeValue).toBe(0);
+    expect(built.fee).toBe(250);
+    expect(built.feeRate).toBe(built.fee / built.vsize);
+  });
+
+  it('rejects recipient amounts below the address-specific dust threshold', () => {
+    const descriptor = `wpkh([73c5da0a/84h/0h/0h]${XPUB}/<0;1>/*)`;
+    const buildRequest = request(descriptor);
+    buildRequest.recipients[0].value = 100;
+    expect(() => buildWatchOnlyPsbt(btc, buildRequest)).toThrowError(/dust threshold/);
+  });
+
   it('accepts base64/hex transport and parses BIP21 amounts without rounding', () => {
     const hex = bytesToHex(btc.psbt.fromBase64(SIGNED_PSBT));
     expect(normalizePsbtText(hex)).toBe(SIGNED_PSBT);

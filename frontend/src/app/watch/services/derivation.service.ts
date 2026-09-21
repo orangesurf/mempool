@@ -60,6 +60,7 @@ export class DerivationService implements OnDestroy {
     fingerprint?: string;
     fingerprintIsMaster: boolean;
     originPath?: string;
+    signingOriginsComplete: boolean;
   }> {
     return this.send({ cmd: 'prepare', input, network, scriptTypeHint });
   }

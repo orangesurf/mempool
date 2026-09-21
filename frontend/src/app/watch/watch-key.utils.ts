@@ -134,15 +134,65 @@ export function buildDescriptor(xpub: string, scriptType: ScriptType): string {
   }
 }
 
+const DESCRIPTOR_INPUT_CHARSET = "0123456789()[],'/*abcdefgh@:$%{}IJKLMNOPQRSTUVWXYZ&+-.;<=>?!^_|~ijklmnopqrstuvwxyzABCDEFGH`#\"\\ ";
+const DESCRIPTOR_CHECKSUM_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+
+function descriptorChecksum(body: string): string {
+  const polymod = (checksum: bigint, value: number): bigint => {
+    const top = checksum >> 35n;
+    let next = ((checksum & 0x7ffffffffn) << 5n) ^ BigInt(value);
+    const generators = [0xf5dee51989n, 0xa9fdca3312n, 0x1bab10e32dn, 0x3706b1677an, 0x644d626ffdn];
+    generators.forEach((generator, index) => {
+      if ((top >> BigInt(index)) & 1n) next ^= generator;
+    });
+    return next;
+  };
+  let checksum = 1n;
+  let cls = 0;
+  let clsCount = 0;
+  for (const char of body) {
+    const position = DESCRIPTOR_INPUT_CHARSET.indexOf(char);
+    if (position < 0) throw new Error(`Descriptor contains an unsupported character: ${char}`);
+    checksum = polymod(checksum, position & 31);
+    cls = cls * 3 + (position >> 5);
+    if (++clsCount === 3) {
+      checksum = polymod(checksum, cls);
+      cls = 0;
+      clsCount = 0;
+    }
+  }
+  if (clsCount) checksum = polymod(checksum, cls);
+  for (let i = 0; i < 8; i++) checksum = polymod(checksum, 0);
+  checksum ^= 1n;
+  let result = '';
+  for (let i = 0; i < 8; i++) {
+    result += DESCRIPTOR_CHECKSUM_CHARSET[Number((checksum >> BigInt(5 * (7 - i))) & 31n)];
+  }
+  return result;
+}
+
+export function validateDescriptorChecksum(descriptor: string): void {
+  const separator = descriptor.lastIndexOf('#');
+  if (separator < 0) return;
+  const body = descriptor.slice(0, separator);
+  const supplied = descriptor.slice(separator + 1);
+  if (!/^[a-z0-9]{8}$/i.test(supplied) || descriptorChecksum(body) !== supplied) {
+    throw new Error('Descriptor checksum is invalid. Check that the descriptor was copied exactly.');
+  }
+}
+
 /**
  * A user-supplied descriptor may be single-path (`.../0/*`). We need both chains, so
  * rewrite a trailing single-path element into a multipath one. Already-multipath
  * descriptors pass through untouched.
  *
- * Also strips a trailing `#checksum`, which btcd's parser does not accept.
+ * A supplied BIP-380 checksum is validated before it is stripped; rewriting a branch changes
+ * the descriptor text, so the original checksum cannot be retained afterward.
  */
 export function toMultipathDescriptor(descriptor: string): string {
-  let d = descriptor.trim().replace(/#[a-z0-9]{8}$/i, '');
+  const trimmed = descriptor.trim();
+  validateDescriptorChecksum(trimmed);
+  let d = trimmed.replace(/#[a-z0-9]{8}$/i, '');
   if (/<\s*\d+\s*;\s*\d+\s*>/.test(d)) {
     return d; // already multipath
   }

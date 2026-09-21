@@ -23,6 +23,7 @@ import {
   normalizeExtendedKey,
   parseKeyOrigin,
   toMultipathDescriptor,
+  validateDescriptorChecksum,
 } from './watch-key.utils';
 import { ScriptType, WatchNetwork } from './watch.types';
 import { buildWatchOnlyPsbt, finalizeExternalPsbt, PsbtBuildRequest } from './psbt.utils';
@@ -136,9 +137,12 @@ async function handlePrepare(req: PrepareRequest) {
   let fingerprint: string | undefined;
   let fingerprintIsMaster = false;
   let originPath: string | undefined;
+  let signingOriginsComplete = false;
 
   if (looksLikeDescriptor(input)) {
-    descriptor = toMultipathDescriptor(await normalizeDescriptorKeys(input, btc, req.network));
+    validateDescriptorChecksum(input);
+    const withoutChecksum = input.replace(/#[a-z0-9]{8}$/i, '');
+    descriptor = toMultipathDescriptor(await normalizeDescriptorKeys(withoutChecksum, btc, req.network));
     // btcd validates the descriptor for us; an invalid one throws here.
     const desc = getDescriptor(btc, descriptor);
     scriptType = desc.descType();
@@ -151,6 +155,12 @@ async function handlePrepare(req: PrepareRequest) {
       fingerprintIsMaster = true;
       originPath = origin.path;
     }
+    const descriptorKeys = [...descriptor.matchAll(/(?:\[([0-9a-fA-F]{8})((?:\/[^\]]+)+)?\])?((?:xpub|tpub)[1-9A-HJ-NP-Za-km-z]+)/g)];
+    signingOriginsComplete = descriptorKeys.length > 0 && descriptorKeys.every((match) => {
+      const depth = btc.hdkeychain.fromString(match[3]).depth;
+      if (depth === 0) return !match[2];
+      return !!match[1] && !!match[2] && match[2].split('/').filter(Boolean).length === depth;
+    });
   } else if (looksLikeExtendedKey(input)) {
     const b58: Base58Codec = {
       decode: (s) => btc.base58.decode(s),
@@ -174,6 +184,7 @@ async function handlePrepare(req: PrepareRequest) {
     const info = btc.hdkeychain.fromString(norm.xpub);
     fingerprint = fingerprintOf(btc, info.publicKey);
     fingerprintIsMaster = info.depth === 0;
+    signingOriginsComplete = info.depth === 0;
   } else {
     throw new Error('Not a recognized extended public key or output descriptor.');
   }
@@ -186,7 +197,7 @@ async function handlePrepare(req: PrepareRequest) {
     );
   }
 
-  return { descriptor, scriptType, descType: desc.descType(), fingerprint, fingerprintIsMaster, originPath };
+  return { descriptor, scriptType, descType: desc.descType(), fingerprint, fingerprintIsMaster, originPath, signingOriginsComplete };
 }
 
 async function handleDerive(req: DeriveRequest) {

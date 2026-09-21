@@ -1,0 +1,47 @@
+@mixin styles {
+  .inline-label-value {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    max-width: 18rem;
+    padding: .1rem .15rem;
+    overflow: hidden;
+    color: var(--fg);
+    font: inherit;
+    font-weight: 500;
+    line-height: 1.35;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px dashed var(--transparent-fg);
+    border-radius: 0;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: text;
+  }
+
+  .inline-label-value:hover,
+  .inline-label-value:focus-visible {
+    color: var(--fg);
+    border-bottom-color: var(--fg);
+    outline: none;
+  }
+
+  .inline-label-value.is-empty {
+    color: var(--transparent-fg);
+    font-weight: 400;
+    font-style: italic;
+  }
+
+  .inline-label-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .label-edit-icon {
+    flex: 0 0 auto;
+    color: var(--transparent-fg);
+    font-size: .7em;
+  }
+}

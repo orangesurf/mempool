@@ -14,6 +14,8 @@ export class QrcodeComponent implements AfterViewInit {
   @Input() size = 125;
   @Input() imageUrl: string;
   @Input() border = 0;
+  /** QR quiet zone in modules. Animated/signing QRs should use the standard four modules. */
+  @Input() margin = 0;
   @ViewChild('canvas') canvas: ElementRef;
 
   qrcodeObject: any;
@@ -39,7 +41,7 @@ export class QrcodeComponent implements AfterViewInit {
     }
     const opts: QRCode.QRCodeRenderersOptions = {
       errorCorrectionLevel: 'M',
-      margin: 0,
+      margin: this.margin,
       color: {
         dark: '#000',
         light: '#fff'
@@ -51,14 +53,8 @@ export class QrcodeComponent implements AfterViewInit {
       return;
     }
 
-    const address = this.data;
-    if (
-      this.data.indexOf('bc1') === 0 ||
-      this.data.indexOf('tb1') === 0 ||
-      this.data.indexOf('bcrt1') === 0
-    ) {
-      address.toUpperCase();
-    }
+    let address = this.data;
+    if (/^(?:bc1|tb1|bcrt1|ur:)/i.test(address)) address = address.toUpperCase();
 
     QRCode.toCanvas(this.canvas.nativeElement, address, opts, (error: any) => {
       if (error) {

@@ -8,10 +8,11 @@
     <!-- Opt-in inline label (watch-only wallet): a pencil next to the txid to add/edit its label. -->
     <span class="tx-inline-label" *ngIf="editableLabels">
       <ng-container *ngIf="editingLabelTxid !== tx.txid">
-        <span class="tx-label-text" *ngIf="txLabels[tx.txid]">{{ txLabels[tx.txid] }}</span>
         <button type="button" class="tx-label-edit" (click)="beginLabelEdit(tx.txid, $event)"
+                [class.is-empty]="!txLabels[tx.txid]"
                 [attr.aria-label]="txLabels[tx.txid] ? 'Edit label' : 'Add label'"
                 [title]="txLabels[tx.txid] ? 'Edit label' : 'Add label'" i18n-title="watch.labels.edit-tx">
+          <span class="tx-label-text">{{ txLabels[tx.txid] || 'Add label' }}</span>
           <fa-icon [icon]="['fas', 'pen']" [fixedWidth]="true"></fa-icon>
         </button>
       </ng-container>

@@ -10,12 +10,21 @@ export interface PsbtBuildRequest {
 }
 export interface PsbtBuildResult {
   base64: string; hex: string; selected: PsbtBuildUtxo[]; outputs: PsbtRecipient[];
-  changeAddress?: string; changeValue: number; fee: number; feeRate: number; vsize: number;
+  changeAddress?: string; changeValue: number; fee: number; feeRate: number; requestedFeeRate: number;
+  vsize: number; opReturn?: string;
 }
 export interface PsbtFinalizedResult { base64: string; rawHex: string; }
 
 const HARDENED = 0x80000000;
 const DUST = 546;
+
+function dustThreshold(script: Uint8Array): number {
+  const hex = bytesToHex(script);
+  if (/^0014[0-9a-f]{40}$/.test(hex)) return 294; // P2WPKH
+  if (/^(?:0020|5120)[0-9a-f]{64}$/.test(hex)) return 330; // P2WSH / P2TR
+  if (/^a914[0-9a-f]{40}87$/.test(hex)) return 540; // P2SH
+  return DUST; // P2PKH and conservative fallback
+}
 
 export function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -146,9 +155,22 @@ export function buildWatchOnlyPsbt(btc: BtcutilSync, request: PsbtBuildRequest):
   for (const utxo of sorted) {
     selected.push(utxo);
     total += utxo.value;
-    vsize = estimateVsize(selected.length, [...recipientScripts, ...extraScripts, changeScript], desc.maxWeightToSatisfy(), segwit);
-    fee = Math.ceil(vsize * request.feeRate);
-    if (!request.sendMax && !request.useAllUtxos && total >= wanted + fee) break;
+    const withChangeVsize = estimateVsize(selected.length, [...recipientScripts, ...extraScripts, changeScript], desc.maxWeightToSatisfy(), segwit);
+    const withChangeFee = Math.ceil(withChangeVsize * request.feeRate);
+    vsize = withChangeVsize;
+    fee = withChangeFee;
+    if (!request.sendMax && !request.useAllUtxos) {
+      if (total >= wanted + withChangeFee) break;
+      // A transaction can be valid without a change output even when adding a change output
+      // would make it appear underfunded. In that case the small remainder becomes fee.
+      const noChangeVsize = estimateVsize(selected.length, [...recipientScripts, ...extraScripts], desc.maxWeightToSatisfy(), segwit);
+      const noChangeFee = Math.ceil(noChangeVsize * request.feeRate);
+      if (total >= wanted + noChangeFee) {
+        vsize = noChangeVsize;
+        fee = total - wanted;
+        break;
+      }
+    }
   }
   if (!request.sendMax && total < wanted + fee) throw new Error('Selected coins do not cover the recipients and fee.');
   const outputs = request.recipients.map((recipient) => ({ ...recipient }));
@@ -158,7 +180,7 @@ export function buildWatchOnlyPsbt(btc: BtcutilSync, request: PsbtBuildRequest):
     vsize = estimateVsize(selected.length, [...recipientScripts, ...extraScripts], desc.maxWeightToSatisfy(), segwit);
     fee = Math.ceil(vsize * request.feeRate);
     outputs[0].value = total - fee;
-    if (outputs[0].value <= DUST) throw new Error('The maximum amount would be dust after fees.');
+    if (outputs[0].value < dustThreshold(recipientScripts[0])) throw new Error('The maximum amount would be dust after fees.');
   } else {
     changeValue = total - wanted - fee;
     if (changeValue <= DUST) {
@@ -167,6 +189,11 @@ export function buildWatchOnlyPsbt(btc: BtcutilSync, request: PsbtBuildRequest):
       changeValue = 0;
     }
   }
+  outputs.forEach((output, index) => {
+    if (output.value < dustThreshold(recipientScripts[index])) {
+      throw new Error(`Recipient ${index + 1} amount is below the dust threshold for that address type.`);
+    }
+  });
   const txOutputs = outputs.map((output) => ({ value: output.value, script: hexToBytes(output.scriptPubKey) }));
   for (const script of extraScripts) txOutputs.push({ value: 0, script });
   const changeIndex = changeValue ? txOutputs.length : -1;
@@ -217,7 +244,8 @@ export function buildWatchOnlyPsbt(btc: BtcutilSync, request: PsbtBuildRequest):
   return {
     base64, hex: bytesToHex(btc.psbt.fromBase64(base64)), selected, outputs,
     changeAddress: changeValue ? request.change.address : undefined,
-    changeValue, fee, feeRate: request.feeRate, vsize,
+    changeValue, fee, feeRate: fee / vsize, requestedFeeRate: request.feeRate, vsize,
+    opReturn: request.opReturn,
   };
 }
 

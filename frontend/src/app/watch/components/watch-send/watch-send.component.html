@@ -7,17 +7,21 @@
     This app never has private keys and never signs. Carefully verify every address and amount
     on your external signer. Broadcasting reveals the transaction to this site's configured mempool API.
   </div>
+  <div class="alert alert-warning mt-3" *ngIf="model.sendBlockedReason">{{ model.sendBlockedReason }}</div>
 
     <div class="recipient-row mt-3" *ngFor="let recipient of model.sendRecipients; let i = index">
       <div class="recipient-address">
         <label class="form-label">Recipient address or BIP21 URI</label>
-        <input class="form-control" [(ngModel)]="recipient.target" (blur)="run('applyRecipientUri', recipient)"
+        <input class="form-control" [(ngModel)]="recipient.target"
+               (ngModelChange)="run('invalidateSendDraft')" (blur)="run('applyRecipientUri', recipient)"
                autocomplete="off" spellcheck="false" placeholder="bc1… or bitcoin:…">
       </div>
       <div class="recipient-amount">
         <label class="form-label">Amount (BTC)</label>
         <input class="form-control" [(ngModel)]="recipient.amountBtc" [disabled]="model.sendMax"
+               (ngModelChange)="run('invalidateSendDraft')"
                inputmode="decimal" placeholder="0.001">
+        <small class="amount-maximum">Max: {{ model.sendMaximumBtc }} BTC <span>(fee deducted for a sweep)</span></small>
       </div>
       <button class="btn btn-sm btn-outline-secondary remove-recipient" type="button"
               *ngIf="model.sendRecipients.length > 1" (click)="run('removeSendRecipient', i)">Remove</button>
@@ -26,6 +30,7 @@
       <button class="btn btn-sm btn-outline-secondary" type="button" (click)="run('addSendRecipient')" [disabled]="model.sendMax">Add recipient</button>
       <label class="form-check mb-0">
         <input class="form-check-input" type="checkbox" [(ngModel)]="model.sendMax"
+               (ngModelChange)="run('invalidateSendDraft')"
                [disabled]="model.sendRecipients.length !== 1">
         <span class="form-check-label">Max / sweep</span>
       </label>
@@ -33,29 +38,58 @@
 
     <div class="send-options mt-3">
       <label><span class="form-label">Fee rate (sat/vB)</span>
-        <input class="form-control" type="number" min="0.1" step="0.1" [(ngModel)]="model.sendFeeRate">
+        <input class="form-control" type="number" min="0.1" step="0.1" [(ngModel)]="model.sendFeeRate"
+               (ngModelChange)="run('setManualSendFeeRate')">
       </label>
       <label><span class="form-label">Absolute locktime</span>
-        <input class="form-control" type="number" min="0" step="1" [(ngModel)]="model.sendLocktime">
+        <input class="form-control" type="number" min="0" step="1" [(ngModel)]="model.sendLocktime"
+               (ngModelChange)="run('invalidateSendDraft')">
       </label>
       <label class="form-check option-check">
-        <input class="form-check-input" type="checkbox" [(ngModel)]="model.sendRbf">
+        <input class="form-check-input" type="checkbox" [(ngModel)]="model.sendRbf"
+               (ngModelChange)="run('invalidateSendDraft')">
         <span class="form-check-label">Opt in to RBF</span>
       </label>
     </div>
     <label class="form-label mt-3">Optional OP_RETURN (UTF-8, 80 bytes max)</label>
-    <input class="form-control" [(ngModel)]="model.sendOpReturn" maxlength="80" autocomplete="off">
+    <input class="form-control" [(ngModel)]="model.sendOpReturn"
+           (ngModelChange)="run('invalidateSendDraft')" maxlength="80" autocomplete="off">
 
-    <label class="form-check mt-3">
-      <input class="form-check-input" type="checkbox" [(ngModel)]="model.sendManualCoins">
-      <span class="form-check-label">Hand-pick UTXOs instead of automatic coin selection</span>
-    </label>
-    <div class="coin-picker" *ngIf="model.sendManualCoins">
+    <div class="coin-selection-header mt-3">
+      <div>
+        <span class="form-label mb-0">Spend from</span>
+        <span class="coin-selection-summary">
+          {{ model.sendManualCoins ? model.sendSelectedUtxos.length : model.sendSpendableUtxos.length }}
+          UTXO(s) · {{ model.sendMaximumBtc }} BTC available
+        </span>
+      </div>
+      <label class="form-check mb-0">
+        <input class="form-check-input" type="checkbox" [(ngModel)]="model.sendManualCoins"
+               (ngModelChange)="run('invalidateSendDraft')">
+        <span class="form-check-label">Hand-pick UTXOs</span>
+      </label>
+      <div class="coin-selection-actions" *ngIf="model.sendManualCoins">
+        <button class="btn btn-sm btn-link" type="button" (click)="run('selectAllSendCoins')">Select all</button>
+        <button class="btn btn-sm btn-link" type="button" (click)="run('clearSendCoins')">Clear</button>
+      </div>
+    </div>
+    <p class="coin-selection-help text-muted mb-0" *ngIf="!model.sendManualCoins">
+      Automatic selection will choose only the inputs it needs from the eligible UTXOs below.
+    </p>
+    <div class="coin-picker" [class.coin-picker-automatic]="!model.sendManualCoins">
       <label class="coin-picker-row" *ngFor="let utxo of model.sendSpendableUtxos; trackBy: model.trackByUtxo">
-        <input type="checkbox" [checked]="model.isSendCoinSelected(utxo)" (change)="run('toggleSendCoin', utxo)">
-        <span class="coin-outpoint">{{ utxo.txid | slice:0:10 }}…:{{ utxo.vout }}</span>
+        <input type="checkbox" [checked]="!model.sendManualCoins || model.isSendCoinSelected(utxo)"
+               [disabled]="!model.sendManualCoins" (change)="run('toggleSendCoin', utxo)">
+        <span class="coin-description">
+          <span class="coin-outpoint">{{ utxo.txid | slice:0:10 }}…:{{ utxo.vout }}</span>
+          <span class="coin-labels" *ngIf="model.sendCoinLabels(utxo) as labels">
+            <span class="coin-label" *ngFor="let label of labels">{{ label }}</span>
+            <span class="coin-label coin-label-empty" *ngIf="!labels.length">Unlabelled</span>
+          </span>
+          <span class="coin-label coin-label-pending" *ngIf="!utxo.confirmed">Pending</span>
+          <span class="coin-label coin-label-selected" *ngIf="model.isBuiltSendCoin(utxo)">Selected for PSBT</span>
+        </span>
         <app-amount [satoshis]="utxo.value"></app-amount>
-        <span class="text-muted">{{ model.labelFor('output', model.outpoint(utxo)) }}</span>
       </label>
     </div>
     <p class="privacy-note text-muted mt-2">
@@ -64,10 +98,14 @@
     </p>
 
     <button class="btn btn-primary" type="button" (click)="run('buildSendPsbt')"
-            [disabled]="model.psbtBuilding || !model.sendSpendableUtxos.length">
+            [disabled]="model.psbtBuilding || !model.sendSpendableUtxos.length || !!model.sendBlockedReason">
       {{ model.psbtBuilding ? 'Building…' : 'Build unsigned PSBT' }}
     </button>
     <div class="alert alert-danger mt-3" *ngIf="model.psbtError">{{ model.psbtError }}</div>
+    <div class="alert alert-danger mt-3" *ngIf="model.broadcastError && !model.signedPreview">{{ model.broadcastError }}</div>
+    <div class="alert alert-success mt-3" *ngIf="model.broadcastTxid && !model.signedPreview">
+      Broadcast transaction <a [routerLink]="['/tx/' | relativeUrl, model.broadcastTxid]">{{ model.broadcastTxid }}</a>.
+    </div>
 
     <div class="psbt-export mt-4" *ngIf="model.builtPsbt as psbt">
       <h3>Unsigned PSBT ready for external signing</h3>
@@ -78,9 +116,26 @@
         <span>{{ psbt.vsize }} vB estimated</span>
         <span *ngIf="psbt.changeValue">Change: <app-amount [satoshis]="psbt.changeValue"></app-amount></span>
       </div>
+      <div class="alert alert-warning mt-2 mb-0" *ngIf="psbt.feeRate > psbt.requestedFeeRate * 1.5">
+        The effective fee rate is higher than the requested {{ psbt.requestedFeeRate | number:'1.1-2' }} sat/vB because the remainder was too small to create change.
+      </div>
+      <div class="psbt-intent mt-2">
+        <div class="preview-row" *ngFor="let output of psbt.outputs">
+          <span class="preview-address">To {{ output.address }}</span>
+          <app-amount [satoshis]="output.value"></app-amount>
+        </div>
+        <div class="preview-row" *ngIf="psbt.changeValue">
+          <span class="preview-address">Change to {{ psbt.changeAddress }}</span>
+          <app-amount [satoshis]="psbt.changeValue"></app-amount>
+        </div>
+        <div class="preview-row" *ngIf="psbt.opReturn">
+          <span class="preview-address">OP_RETURN: {{ psbt.opReturn }}</span>
+          <app-amount [satoshis]="0"></app-amount>
+        </div>
+      </div>
       <div class="export-buttons mt-2">
         <button class="btn btn-sm btn-primary" type="button" (click)="run('downloadPsbt')">Download .psbt</button>
-        <button class="btn btn-sm btn-outline-secondary" type="button" (click)="run('togglePsbtQrExport')">
+        <button class="btn btn-sm btn-outline-info psbt-qr-toggle" type="button" (click)="run('togglePsbtQrExport')">
           {{ model.psbtQrExportVisible ? 'Hide animated QR' : 'Show as animated QR' }}
         </button>
         <span class="copy-field">Base64 <app-clipboard [text]="psbt.base64" [leftPadding]="false"></app-clipboard></span>
@@ -104,9 +159,9 @@
           </label>
         </div>
         <div class="psbt-qr-stage">
-          <app-qrcode [size]="320" [data]="qr.frames[model.psbtQrFrameIndex]"></app-qrcode>
+          <app-qrcode [size]="320" [margin]="4" [data]="qr.frames[model.psbtQrFrameIndex]"></app-qrcode>
         </div>
-        <div class="psbt-qr-status" aria-live="polite">
+        <div class="psbt-qr-status">
           <strong>{{ model.psbtQrEncoding === 'ur' ? 'UR crypto-psbt' : 'BBQr PSBT' }}</strong>
           <span>Frame {{ model.psbtQrFrameIndex + 1 }} / {{ qr.frames.length }}</span>
           <span *ngIf="model.psbtQrEncoding === 'ur'">{{ qr.partCount }} source parts · {{ qr.frameBudget }} bytes/fragment</span>
@@ -153,6 +208,7 @@
         </div>
       </div>
       <textarea class="form-control" rows="4" [(ngModel)]="model.signedPsbtInput"
+                (ngModelChange)="run('invalidateSignedPreview')"
                 placeholder="Paste signed PSBT as base64 or hex" spellcheck="false"></textarea>
       <button class="btn btn-sm btn-primary mt-2" type="button" (click)="run('finalizeSignedPsbt')"
               [disabled]="!model.signedPsbtInput.trim()">Finalize and preview</button>

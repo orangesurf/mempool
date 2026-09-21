@@ -15,6 +15,7 @@ const LABEL_TYPES = new Set<Bip329LabelType>(['tx', 'addr', 'output']);
 interface WalletLocalState {
   frozen: string[];
   receiveIndex?: number;
+  changeIndex?: number;
 }
 
 function scopedStorageKey(prefix: string, wallet: WatchWallet): string {
@@ -58,9 +59,11 @@ export class WalletStorageService {
         return [];
       }
       // Older experimental builds could persist scanner-specific wallets without a usable
-      // descriptor. Ignore those records; descriptor wallets are safely refreshed via the API.
-      return all.filter((w) => w && w.network === network
-        && typeof w.descriptor === 'string' && !!w.descriptor.trim());
+      // descriptor. Purge those records, including their xpub/source data, rather than merely
+      // hiding them while every later save silently preserves them.
+      const valid = all.filter((w) => w && typeof w.descriptor === 'string' && !!w.descriptor.trim());
+      if (valid.length !== all.length) this.persist(valid);
+      return valid.filter((w) => w.network === network);
     } catch {
       // A corrupt blob should not brick the page. Drop it and start clean.
       return [];
@@ -262,6 +265,17 @@ export class WalletLocalStateService {
     this.persist(wallet, state);
   }
 
+  getChangeIndex(wallet: WatchWallet): number | null {
+    const value = this.load(wallet).changeIndex;
+    return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
+  }
+
+  setChangeIndex(wallet: WatchWallet, index: number): void {
+    const state = this.load(wallet);
+    state.changeIndex = Math.max(0, Math.floor(index));
+    this.persist(wallet, state);
+  }
+
   clear(wallet: WatchWallet): void {
     const key = scopedStorageKey(LOCAL_STATE_STORAGE_PREFIX, wallet);
     this.cache.delete(key);
@@ -291,6 +305,7 @@ export class WalletLocalStateService {
           ? parsed.frozen.filter((value): value is string => typeof value === 'string')
           : [],
         receiveIndex: parsed.receiveIndex,
+        changeIndex: parsed.changeIndex,
       };
     } catch {
       return { frozen: [] };

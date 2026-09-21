@@ -86,6 +86,12 @@ describe('wallet-math', () => {
       expect(computeUtxos([spend, funding], addressMap()).length).toBe(0);
     });
 
+    it('removes a spent output even when the spending input has no prevout metadata', () => {
+      const funding = tx({ txid: 'a', height: 100, vout: [{ address: MINE_RECV_0, value: 50_000 }] });
+      const spend = tx({ txid: 'b', height: 101, vin: [{ txid: 'a', vout: 0 }], vout: [] });
+      expect(computeUtxos([funding, spend], addressMap()).length).toBe(0);
+    });
+
     it('keeps the change output of our own spend', () => {
       const txs = [
         tx({ txid: 'a', height: 100, vout: [{ address: MINE_RECV_0, value: 100_000 }] }),
@@ -143,7 +149,7 @@ describe('wallet-math', () => {
         tx({ txid: 'b', height: 101, vout: [{ address: MINE_RECV_1, value: 25_000 }] }),
       ];
       const map = addressMap();
-      const balance = computeBalance(computeUtxos(txs, map), txs, map);
+      const balance = computeBalance(txs, map);
       expect(balance.confirmed).toBe(75_000);
       expect(balance.pending).toBe(0);
       expect(balance.total).toBe(75_000);
@@ -155,7 +161,7 @@ describe('wallet-math', () => {
         tx({ txid: 'b', confirmed: false, vout: [{ address: MINE_RECV_1, value: 10_000 }] }),
       ];
       const map = addressMap();
-      const balance = computeBalance(computeUtxos(txs, map), txs, map);
+      const balance = computeBalance(txs, map);
       expect(balance.confirmed).toBe(50_000);
       expect(balance.pending).toBe(10_000);
       expect(balance.total).toBe(60_000);
@@ -175,12 +181,12 @@ describe('wallet-math', () => {
         }),
       ];
       const map = addressMap();
-      const balance = computeBalance(computeUtxos(txs, map), txs, map);
-      // The 100k UTXO is spent (so not confirmed-unspent), the 39k change is unconfirmed.
-      expect(balance.confirmed).toBe(0);
+      const balance = computeBalance(txs, map);
+      // The chain-tip balance is still 100k; the pending spend reduces it by the 60k payment
+      // plus the 1k fee, leaving the 39k unconfirmed change as the eventual wallet balance.
+      expect(balance.confirmed).toBe(100_000);
       expect(balance.pending).toBe(-61_000);
-      // Spendable-once-settled: we started with 100k and are paying 61k away.
-      expect(balance.total).toBe(-61_000);
+      expect(balance.total).toBe(39_000);
     });
   });
 

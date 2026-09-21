@@ -31,8 +31,11 @@
                    (blur)="run('saveLabelEdit')" (keyup.enter)="run('saveLabelEdit')"
                    (keydown.escape)="run('cancelLabelEdit'); $event.preventDefault()">
             <button *ngIf="!model.isEditingLabel('output', model.outpoint(utxo))" type="button"
-                    class="inline-label-value" (click)="run('startLabelEdit', 'output', model.outpoint(utxo))">
-              {{ model.labelFor('output', model.outpoint(utxo)) || 'Add label' }}
+                    class="inline-label-value"
+                    [class.is-empty]="!model.labelFor('output', model.outpoint(utxo))"
+                    (click)="run('startLabelEdit', 'output', model.outpoint(utxo))">
+              <span class="inline-label-text">{{ model.labelFor('output', model.outpoint(utxo)) || 'Add label' }}</span>
+              <fa-icon class="label-edit-icon" [icon]="['fas', 'pen']" [fixedWidth]="true"></fa-icon>
             </button>
           </td>
           <td class="text-end">

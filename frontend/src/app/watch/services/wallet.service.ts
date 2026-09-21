@@ -42,6 +42,7 @@ export class WalletService {
   private wallet$ = new BehaviorSubject<WatchWallet | null>(null);
   private wallets$ = new BehaviorSubject<WatchWallet[]>([]);
   private transactions$ = new BehaviorSubject<Transaction[]>([]);
+  private restoredNetwork: WatchNetwork | null = null;
 
   constructor(private storage: WalletStorageService) {}
 
@@ -51,15 +52,15 @@ export class WalletService {
    * merged map for site-wide highlighting; does not need the /watch page to be open.
    */
   restore(network: WatchNetwork): void {
-    if (this.walletsById.size) {
+    if (this.restoredNetwork === network && this.walletsById.size) {
       return;
     }
+    this.restoredNetwork = network;
     const wallets = this.storage.load(network);
-    if (wallets.length) {
-      this.syncWallets(wallets);
-      // Seed an active wallet so the /watch page's per-wallet views have one to start from.
-      this.setActive(wallets[0]);
-    }
+    this.syncWallets(wallets);
+    // Seed an active wallet so the /watch page's per-wallet views have one to start from, and
+    // explicitly clear the previous network when this network has no saved wallets.
+    this.setActive(wallets[0] ?? null);
   }
 
   /** Replace the full set of loaded wallets and rebuild the merged highlighting map. */
@@ -175,8 +176,8 @@ export class WalletService {
     return walletMath.computeWalletTxs(txs, this.addressMap);
   }
 
-  computeBalance(utxos: WalletUtxo[], txs: Transaction[]): WalletBalance {
-    return walletMath.computeBalance(utxos, txs, this.addressMap);
+  computeBalance(txs: Transaction[]): WalletBalance {
+    return walletMath.computeBalance(txs, this.addressMap);
   }
 
   computeLastUsed(txs: Transaction[]): Record<Chain, number> {
@@ -216,8 +217,29 @@ export class WalletService {
     const utxos = walletMath.computeUtxos(txs, map);
     return {
       utxos,
-      balance: walletMath.computeBalance(utxos, txs, map),
+      balance: walletMath.computeBalance(txs, map),
       lastUsed: walletMath.computeLastUsed(txs, map),
+      summary: this.summaryFor(txs, map),
+    };
+  }
+
+  /** Build the aggregate exactly once against the union of all wallet addresses. This avoids
+   * double-counting when two imported descriptors overlap or a transaction moves funds between
+   * two of the user's wallets. */
+  buildAggregateView(wallets: WatchWallet[], txs: Transaction[]): {
+    utxos: WalletUtxo[];
+    balance: WalletBalance;
+    summary: AddressTxSummary[];
+  } {
+    const map: walletMath.AddressMap = new Map();
+    for (const wallet of wallets) {
+      for (const address of wallet.addresses) {
+        if (!map.has(address.address)) map.set(address.address, address);
+      }
+    }
+    return {
+      utxos: walletMath.computeUtxos(txs, map),
+      balance: walletMath.computeBalance(txs, map),
       summary: this.summaryFor(txs, map),
     };
   }

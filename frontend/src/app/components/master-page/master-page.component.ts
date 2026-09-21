@@ -69,6 +69,9 @@ export class MasterPageComponent implements OnInit, OnDestroy {
       const watchNetwork = fromMempoolNetwork(network);
       if (watchNetwork) {
         this.walletService.restore(watchNetwork);
+      } else {
+        this.walletService.syncWallets([]);
+        this.walletService.setActive(null);
       }
     }));
     this.urlLanguage = this.languageService.getLanguageForUrl();

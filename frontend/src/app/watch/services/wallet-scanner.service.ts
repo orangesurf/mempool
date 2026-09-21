@@ -13,15 +13,11 @@ import { DerivationService } from './derivation.service';
 const MAX_PAGES = 200;
 const PAGE_SIZE = 50;
 
-function walletId(network: WatchNetwork, descriptor: string, scriptType: string): string {
-  if (!['wsh', 'shwsh'].includes(scriptType.toLowerCase())) {
-    return `${network}-${descriptor.slice(0, 24)}`;
-  }
-  let hash = 2166136261;
-  for (let i = 0; i < descriptor.length; i++) {
-    hash = Math.imul(hash ^ descriptor.charCodeAt(i), 16777619);
-  }
-  return `${network}-multisig-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+async function walletId(network: WatchNetwork, descriptor: string): Promise<string> {
+  const bytes = new TextEncoder().encode(`${network}\n${descriptor}`);
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  const hex = Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${network}-${hex}`;
 }
 
 export interface ScanProgress {
@@ -64,8 +60,10 @@ export class WalletScannerService {
     gapLimit: number,
     source: string,
     label: string,
-    identity: { fingerprint?: string; fingerprintIsMaster: boolean; originPath?: string },
+    identity: { fingerprint?: string; fingerprintIsMaster: boolean; originPath?: string; signingOriginsComplete?: boolean },
     onProgress?: (p: ScanProgress) => void,
+    minimumDerived?: Record<Chain, number>,
+    existingWalletId?: string,
   ): Promise<{ wallet: WatchWallet; txs: Transaction[]; truncated: boolean }> {
     const derivedCount: Record<Chain, number> = { 0: 0, 1: 0 };
     const addresses: DerivedAddress[] = [];
@@ -148,6 +146,14 @@ export class WalletScannerService {
     await fetchFor(await extend(0));
     await fetchFor(await extend(1));
 
+    // Locally reserved change addresses may be beyond the last on-chain use. Scan through the
+    // reservation plus a full gap window so a later-broadcast transaction cannot become hidden.
+    for (const chain of [0, 1] as Chain[]) {
+      while (derivedCount[chain] < (minimumDerived?.[chain] ?? 0) && !truncated) {
+        await fetchFor(await extend(chain));
+      }
+    }
+
     for (;;) {
       let extended = false;
       for (const chain of [0, 1] as Chain[]) {
@@ -175,7 +181,7 @@ export class WalletScannerService {
     onProgress?.({ phase: 'done', addressesDerived: addresses.length, txsFound: txs.length, truncated });
 
     const wallet: WatchWallet = {
-      id: walletId(network, descriptor, scriptType),
+      id: existingWalletId ?? await walletId(network, descriptor),
       label,
       source,
       descriptor,
@@ -183,6 +189,7 @@ export class WalletScannerService {
       fingerprint: identity.fingerprint,
       fingerprintIsMaster: identity.fingerprintIsMaster,
       originPath: identity.originPath,
+      signingOriginsComplete: identity.signingOriginsComplete,
       network,
       gapLimit,
       derivedCount,

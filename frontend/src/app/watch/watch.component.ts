@@ -193,8 +193,13 @@ export class WatchComponent implements OnInit, OnDestroy {
   sendRecipients: SendRecipientRow[] = [{ target: '', amountBtc: '' }];
   sendMax = false;
   sendFeeRate = 1;
+  private sendFeeRateManuallySet = false;
   sendManualCoins = false;
   sendSelectedOutpoints = new Set<string>();
+  private sendKnownOutpoints = new Set<string>();
+  private sendDraftGeneration = 0;
+  private signedPreviewGeneration = 0;
+  private scanGeneration = 0;
   sendRbf = true;
   sendLocktime = 0;
   sendOpReturn = '';
@@ -246,7 +251,11 @@ export class WatchComponent implements OnInit, OnDestroy {
     this.seoService.setTitle($localize`:@@watch.title:Watch-only wallet`);
 
     this.subscription.add(this.stateService.recommendedFees$.subscribe((fees) => {
-      if (!this.builtPsbt) this.sendFeeRate = fees.halfHourFee;
+      if (!this.builtPsbt && !this.sendFeeRateManuallySet) this.sendFeeRate = fees.halfHourFee;
+      this.cd.markForCheck();
+    }));
+    this.subscription.add(this.tracker.walletUpdated$.subscribe(() => {
+      this.liveTrackingDegraded = this.tracker.degraded;
       this.cd.markForCheck();
     }));
 
@@ -258,6 +267,8 @@ export class WatchComponent implements OnInit, OnDestroy {
       of(this.stateService.network),
       this.stateService.networkChanged$,
     ).pipe(distinctUntilChanged()).subscribe((network) => {
+      this.scanGeneration++;
+      this.scanning = false;
       const mapped = fromMempoolNetwork(network);
       this.network = mapped;
       this.networkUnsupported = mapped === null;
@@ -271,6 +282,9 @@ export class WatchComponent implements OnInit, OnDestroy {
         if (this.wallets.length) {
           this.activate(this.wallets[0]);
         }
+      } else {
+        this.walletService.syncWallets([]);
+        this.walletService.setActive(null);
       }
       this.cd.markForCheck();
     }));
@@ -346,16 +360,19 @@ export class WatchComponent implements OnInit, OnDestroy {
     this.adding = false;
     this.viewingAll = false;
     this.error = null;
+    const generation = ++this.scanGeneration;
     this.walletService.setActive(wallet);
 
     if (this.views.has(wallet.id)) {
       this.showView(wallet.id);
       this.cd.markForCheck();
+      await this.refresh(generation);
       return;
     }
 
+    this.resetSendFlow();
     this.applyWallet(wallet, []);
-    await this.refresh();
+    await this.refresh(generation);
   }
 
   switchTo(id: string): void {
@@ -379,6 +396,7 @@ export class WatchComponent implements OnInit, OnDestroy {
     if (this.scanning) {
       return;
     }
+    const generation = ++this.scanGeneration;
     this.stashActiveView();
     this.tracker.stop();
     this.viewingAll = true;
@@ -392,31 +410,37 @@ export class WatchComponent implements OnInit, OnDestroy {
     this.walletService.setActive(null);
     this.cd.markForCheck();
 
-    const toLoad = this.wallets.filter((w) => !this.views.has(w.id));
+    // Refresh every included wallet. Cached views are useful for instant wallet switching, but
+    // an aggregate used for balances/UTXOs must not quietly combine stale inactive wallets.
+    const toLoad = [...this.wallets];
     if (toLoad.length) {
       this.scanning = true;
       this.cd.markForCheck();
       try {
         for (const w of toLoad) {
-          await this.loadViewFor(w);
+          this.views.delete(w.id);
+          await this.loadViewFor(w, generation);
+          if (generation !== this.scanGeneration) return;
         }
       } catch (e) {
-        this.error = e instanceof Error ? e.message : String(e);
+        if (generation === this.scanGeneration) this.error = e instanceof Error ? e.message : String(e);
       } finally {
-        this.scanning = false;
+        if (generation === this.scanGeneration) this.scanning = false;
       }
     }
 
+    if (generation !== this.scanGeneration) return;
     this.applyAggregate();
     this.cd.markForCheck();
   }
 
   /** Load one wallet's view into the cache without disturbing what is on screen. */
-  private async loadViewFor(wallet: WatchWallet): Promise<void> {
+  private async loadViewFor(wallet: WatchWallet, generation = this.scanGeneration): Promise<void> {
     if (this.views.has(wallet.id)) {
       return;
     }
-    const { wallet: scanned, txs } = await this.scanner.scan(
+    const reservedChange = this.localState.getChangeIndex(wallet) ?? 0;
+    const { wallet: scanned, txs, truncated } = await this.scanner.scan(
       wallet.descriptor,
       wallet.scriptType,
       wallet.network,
@@ -427,9 +451,13 @@ export class WatchComponent implements OnInit, OnDestroy {
         fingerprint: wallet.fingerprint,
         fingerprintIsMaster: wallet.fingerprintIsMaster,
         originPath: wallet.originPath,
+        signingOriginsComplete: wallet.signingOriginsComplete,
       },
       () => {},
+      { 0: wallet.derivedCount[0], 1: Math.max(wallet.derivedCount[1], reservedChange + wallet.gapLimit) },
+      wallet.id,
     );
+    if (generation !== this.scanGeneration) return;
     this.storage.save(scanned);
     const view = this.walletService.buildView(scanned, txs);
     this.views.set(scanned.id, {
@@ -439,7 +467,7 @@ export class WatchComponent implements OnInit, OnDestroy {
       balance: view.balance,
       lastUsed: view.lastUsed,
       summary: view.summary,
-      truncated: false,
+      truncated,
       liveTrackingDegraded: false,
     });
     const idx = this.wallets.findIndex((w) => w.id === scanned.id);
@@ -454,23 +482,6 @@ export class WatchComponent implements OnInit, OnDestroy {
       .map((w) => this.views.get(w.id))
       .filter((v): v is WalletView => !!v);
 
-    const balance: WalletBalance = { confirmed: 0, pending: 0, total: 0 };
-    for (const v of views) {
-      balance.confirmed += v.balance.confirmed;
-      balance.pending += v.balance.pending;
-      balance.total += v.balance.total;
-    }
-    this.balance = balance;
-
-    // Union of UTXOs, deduped by outpoint (two wallets could derive a shared address).
-    const utxosByOutpoint = new Map<string, WalletUtxo>();
-    for (const v of views) {
-      for (const u of v.utxos) {
-        utxosByOutpoint.set(`${u.txid}:${u.vout}`, u);
-      }
-    }
-    this.utxos = [...utxosByOutpoint.values()];
-
     // Union of transactions, deduped by txid (one tx can touch two of the user's wallets).
     const txById = new Map<string, Transaction>();
     for (const v of views) {
@@ -479,21 +490,11 @@ export class WatchComponent implements OnInit, OnDestroy {
       }
     }
     this.transactions = [...txById.values()];
-
-    // Balance history = each tx's net effect summed across wallets, so a transfer between two
-    // of the user's own wallets nets to ~0 rather than showing as a spend and a matching receive.
-    const summaryByTxid = new Map<string, AddressTxSummary>();
-    for (const v of views) {
-      for (const s of v.summary) {
-        const existing = summaryByTxid.get(s.txid);
-        if (existing) {
-          existing.value += s.value;
-        } else {
-          summaryByTxid.set(s.txid, { ...s });
-        }
-      }
-    }
-    this.walletSummary$.next([...summaryByTxid.values()].sort((a, b) => b.height - a.height));
+    this.walletService.syncWallets(this.wallets);
+    const aggregate = this.walletService.buildAggregateView(this.wallets, this.transactions);
+    this.balance = aggregate.balance;
+    this.utxos = aggregate.utxos;
+    this.walletSummary$.next(aggregate.summary);
 
     // Site-wide highlighting already recognises every wallet (mergedMap); give the tx list the
     // union of addresses so it highlights all of them.
@@ -503,8 +504,8 @@ export class WatchComponent implements OnInit, OnDestroy {
 
     // Per-wallet-only state has no meaning for the aggregate.
     this.lastUsed = { 0: -1, 1: -1 };
-    this.truncated = false;
-    this.liveTrackingDegraded = false;
+    this.truncated = views.some((view) => view.truncated);
+    this.liveTrackingDegraded = views.some((view) => view.liveTrackingDegraded);
   }
 
   /** Reload every included wallet and rebuild the aggregate (the Refresh button in All mode). */
@@ -512,19 +513,22 @@ export class WatchComponent implements OnInit, OnDestroy {
     if (this.scanning) {
       return;
     }
+    const generation = ++this.scanGeneration;
     this.scanning = true;
     this.error = null;
     this.cd.markForCheck();
     try {
       for (const w of this.wallets) {
         this.views.delete(w.id);
-        await this.loadViewFor(w);
+        await this.loadViewFor(w, generation);
+        if (generation !== this.scanGeneration) return;
       }
     } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e);
+      if (generation === this.scanGeneration) this.error = e instanceof Error ? e.message : String(e);
     } finally {
-      this.scanning = false;
+      if (generation === this.scanGeneration) this.scanning = false;
     }
+    if (generation !== this.scanGeneration) return;
     this.applyAggregate();
     this.cd.markForCheck();
   }
@@ -572,6 +576,7 @@ export class WatchComponent implements OnInit, OnDestroy {
 
   private syncDisplayPreferences(): void {
     this.labelEditor = null;
+    this.syncSendCoinSelection();
     this.selectedLabelTxid = this.transactions.some((tx) => tx.txid === this.selectedLabelTxid)
       ? this.selectedLabelTxid
       : (this.transactions[0]?.txid ?? '');
@@ -978,49 +983,64 @@ export class WatchComponent implements OnInit, OnDestroy {
       this.cd.markForCheck();
       return;
     }
+    const generation = ++this.scanGeneration;
+    const importNetwork = this.network;
+    const input = this.keyInput.trim();
+    const scriptTypeHint = this.needsScriptTypeHint ? this.scriptTypeHint : undefined;
+    const importLabel = this.label.trim() || 'My wallet';
     this.scanning = true;
     this.error = null;
     this.truncated = false;
     this.cd.markForCheck();
 
     try {
+      const gapLimit = Number(this.gapLimit);
+      if (!Number.isInteger(gapLimit) || gapLimit < 5 || gapLimit > 1000) {
+        throw new Error('Gap limit must be a whole number from 5 to 1000.');
+      }
+      this.gapLimit = gapLimit;
       const prepared = await this.derivation.prepare(
-        this.keyInput,
-        this.network,
-        this.needsScriptTypeHint ? this.scriptTypeHint : undefined,
+        input,
+        importNetwork,
+        scriptTypeHint,
       );
+      if (generation !== this.scanGeneration) return;
       const identity = {
         fingerprint: prepared.fingerprint,
         fingerprintIsMaster: prepared.fingerprintIsMaster,
         originPath: prepared.originPath,
+        signingOriginsComplete: prepared.signingOriginsComplete,
       };
-      const source = this.keyInput.trim();
-      const label = this.label.trim() || 'My wallet';
+      const source = input;
 
       const { wallet, txs, truncated } = await this.scanner.scan(
         prepared.descriptor,
         prepared.scriptType,
-        this.network,
-        this.gapLimit,
+        importNetwork,
+        gapLimit,
         source,
-        label,
+        importLabel,
         identity,
         (p) => {
-          this.progress = p;
-          this.cd.markForCheck();
+          if (generation === this.scanGeneration) {
+            this.progress = p;
+            this.cd.markForCheck();
+          }
         },
       );
+      if (generation !== this.scanGeneration) return;
       this.storage.save(wallet);
-      this.applyWallet(wallet, txs);
-      this.truncated = truncated;
+      this.applyWallet(wallet, txs, truncated);
 
       this.keyInput = '';
     } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e);
+      if (generation === this.scanGeneration) this.error = e instanceof Error ? e.message : String(e);
     } finally {
-      this.scanning = false;
-      this.progress = null;
-      this.cd.markForCheck();
+      if (generation === this.scanGeneration) {
+        this.scanning = false;
+        this.progress = null;
+        this.cd.markForCheck();
+      }
     }
   }
 
@@ -1028,7 +1048,7 @@ export class WatchComponent implements OnInit, OnDestroy {
    * Re-scan a wallet we already have. Needs the derivation engine again (to extend the
    * gap limit), which is why `source` is persisted.
    */
-  async refresh(): Promise<void> {
+  async refresh(expectedGeneration?: number): Promise<void> {
     if (this.viewingAll) {
       return this.refreshAll();
     }
@@ -1036,43 +1056,62 @@ export class WatchComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const generation = expectedGeneration ?? ++this.scanGeneration;
+    if (expectedGeneration != null && generation !== this.scanGeneration) return;
     this.scanning = true;
+    this.invalidateSendDraft();
     this.error = null;
     this.cd.markForCheck();
 
+    const activeWallet = this.wallet;
+    const activeNetwork = this.network;
     const identity = {
-      fingerprint: this.wallet.fingerprint,
-      fingerprintIsMaster: this.wallet.fingerprintIsMaster,
-      originPath: this.wallet.originPath,
+      fingerprint: activeWallet.fingerprint,
+      fingerprintIsMaster: activeWallet.fingerprintIsMaster,
+      originPath: activeWallet.originPath,
+      signingOriginsComplete: activeWallet.signingOriginsComplete,
     };
 
     try {
       const { wallet, txs, truncated } = await this.scanner.scan(
-        this.wallet.descriptor,
-        this.wallet.scriptType,
-        this.network,
-        this.wallet.gapLimit,
-        this.wallet.source,
-        this.wallet.label,
+        activeWallet.descriptor,
+        activeWallet.scriptType,
+        activeNetwork,
+        activeWallet.gapLimit,
+        activeWallet.source,
+        activeWallet.label,
         identity,
         (p) => {
-          this.progress = p;
-          this.cd.markForCheck();
+          if (generation === this.scanGeneration) {
+            this.progress = p;
+            this.cd.markForCheck();
+          }
         },
+        {
+          0: activeWallet.derivedCount[0],
+          1: Math.max(
+            activeWallet.derivedCount[1],
+            (this.localState.getChangeIndex(activeWallet) ?? 0) + activeWallet.gapLimit,
+          ),
+        },
+        activeWallet.id,
       );
+      if (generation !== this.scanGeneration) return;
       this.storage.save(wallet);
-      this.applyWallet(wallet, txs);
-      this.truncated = truncated;
+      this.applyWallet(wallet, txs, truncated);
     } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e);
+      if (generation === this.scanGeneration) this.error = e instanceof Error ? e.message : String(e);
     } finally {
-      this.scanning = false;
-      this.progress = null;
-      this.cd.markForCheck();
+      if (generation === this.scanGeneration) {
+        this.scanning = false;
+        this.progress = null;
+        this.cd.markForCheck();
+      }
     }
   }
 
-  private applyWallet(wallet: WatchWallet, txs: Transaction[]): void {
+  private applyWallet(wallet: WatchWallet, txs: Transaction[], truncated = false): void {
+    this.invalidateSendDraft();
     this.walletService.setActive(wallet);
     this.walletService.setTransactions(txs);
 
@@ -1083,6 +1122,7 @@ export class WatchComponent implements OnInit, OnDestroy {
     this.utxos = view.utxos;
     this.balance = view.balance;
     this.lastUsed = view.lastUsed;
+    this.truncated = truncated;
     this.walletSummary$.next(view.summary);
 
     this.syncDisplayPreferences();
@@ -1118,7 +1158,7 @@ export class WatchComponent implements OnInit, OnDestroy {
     this.tracker.start(
       this.wallet,
       this.utxos,
-      this.lastUsed,
+      { ...this.lastUsed, 0: Math.max(this.lastUsed[0], this.receiveIndex - 1) },
       (fresh) => this.mergeTransactions(fresh),
       () => this.refresh(),
     );
@@ -1143,6 +1183,7 @@ export class WatchComponent implements OnInit, OnDestroy {
     if (!changed) {
       return;
     }
+    this.invalidateSendDraft();
     this.transactions = [...byId.values()];
     this.walletService.setTransactions(this.transactions);
     const view = this.walletService.buildView(this.wallet, this.transactions);
@@ -1192,6 +1233,8 @@ export class WatchComponent implements OnInit, OnDestroy {
   }
 
   private resetSendFlow(): void {
+    this.sendDraftGeneration++;
+    this.signedPreviewGeneration++;
     this.closePsbtQrExport();
     this.stopSignedPsbtQrScan();
     this.psbtQrDecoder.reset();
@@ -1201,11 +1244,13 @@ export class WatchComponent implements OnInit, OnDestroy {
     this.sendMax = false;
     this.sendManualCoins = false;
     this.sendSelectedOutpoints = new Set<string>();
+    this.sendKnownOutpoints = new Set<string>();
     this.builtPsbt = null;
     this.psbtError = '';
     this.signedPsbtInput = '';
     this.signedPreview = null;
     this.broadcastConfirmed = false;
+    this.broadcasting = false;
     this.broadcastError = '';
     this.broadcastTxid = '';
   }
@@ -1285,6 +1330,7 @@ export class WatchComponent implements OnInit, OnDestroy {
     this.receiveIndex = next.index;
     this.localState.setReceiveIndex(this.wallet, next.index);
     this.showReceiveDetails = false;
+    this.startTracking();
     this.cd.markForCheck();
   }
 
@@ -1327,12 +1373,105 @@ export class WatchComponent implements OnInit, OnDestroy {
     return this.utxos.filter((utxo) => !this.isFrozen(utxo));
   }
 
+  get sendSelectedUtxos(): WalletUtxo[] {
+    return this.sendSpendableUtxos.filter((utxo) => this.sendSelectedOutpoints.has(this.outpoint(utxo)));
+  }
+
+  get sendMaximumBtc(): string {
+    const utxos = this.sendManualCoins ? this.sendSelectedUtxos : this.sendSpendableUtxos;
+    const sats = utxos.reduce((total, utxo) => total + utxo.value, 0);
+    return (sats / 100_000_000).toFixed(8).replace(/0+$/, '').replace(/\.$/, '') || '0';
+  }
+
+  setManualSendFeeRate(): void {
+    this.sendFeeRateManuallySet = true;
+    this.invalidateSendDraft();
+  }
+
+  get sendBlockedReason(): string {
+    if (this.scanning) {
+      return 'Sending is disabled until the wallet refresh finishes and its UTXO set is current.';
+    }
+    if (this.truncated) {
+      return 'Sending is disabled because this wallet history was truncated; its balance and UTXO set may be incomplete.';
+    }
+    if (this.wallet && !this.hasCompleteSigningOrigins(this.wallet)) {
+      return 'Sending requires a descriptor with the master fingerprint and full key origin. This bare extended key remains available for watch-only use.';
+    }
+    if (this.wallet && !this.isSupportedSigningPolicy(this.wallet)) {
+      return 'This wallet policy is supported for watching, but PSBT creation is limited to single-key legacy/SegWit/Taproot and sortedmulti SegWit descriptors.';
+    }
+    return '';
+  }
+
+  private hasCompleteSigningOrigins(wallet: WatchWallet): boolean {
+    if (wallet.signingOriginsComplete != null) return wallet.signingOriginsComplete;
+    const keys = [...wallet.descriptor.matchAll(/(?:\[([0-9a-fA-F]{8})((?:\/[^\]]+)+)\])?((?:xpub|tpub)[1-9A-HJ-NP-Za-km-z]+)/g)];
+    if (!keys.length) return false;
+    if (keys.every((match) => !!match[1] && !!match[2])) return true;
+    // A single depth-zero extended public key is itself the master and needs no origin prefix.
+    return keys.length === 1 && wallet.fingerprintIsMaster && !wallet.originPath;
+  }
+
+  private isSupportedSigningPolicy(wallet: WatchWallet): boolean {
+    const type = wallet.scriptType.toLowerCase();
+    if (['pkh', 'wpkh', 'sh_wpkh', 'shwpkh'].includes(type)) return true;
+    if (type === 'tr') return /^tr\([^,{]+\)$/.test(wallet.descriptor);
+    if (type === 'wsh') return /^wsh\(sortedmulti\(/.test(wallet.descriptor);
+    if (type === 'sh_wsh' || type === 'shwsh') return /^sh\(wsh\(sortedmulti\(/.test(wallet.descriptor);
+    return false;
+  }
+
+  /** Preserve explicit deselections while selecting every newly discovered spendable coin. */
+  private syncSendCoinSelection(): void {
+    const available = new Set(this.sendSpendableUtxos.map((utxo) => this.outpoint(utxo)));
+    const availabilityChanged = available.size !== this.sendKnownOutpoints.size
+      || [...available].some((outpoint) => !this.sendKnownOutpoints.has(outpoint));
+    const selected = new Set(
+      [...this.sendSelectedOutpoints].filter((outpoint) => available.has(outpoint)),
+    );
+    for (const outpoint of available) {
+      if (!this.sendKnownOutpoints.has(outpoint)) {
+        selected.add(outpoint);
+      }
+    }
+    this.sendSelectedOutpoints = selected;
+    this.sendKnownOutpoints = available;
+    if (availabilityChanged) {
+      this.invalidateSendDraft();
+    }
+  }
+
+  selectAllSendCoins(): void {
+    this.sendSelectedOutpoints = new Set(this.sendSpendableUtxos.map((utxo) => this.outpoint(utxo)));
+    this.invalidateSendDraft();
+  }
+
+  clearSendCoins(): void {
+    this.sendSelectedOutpoints = new Set<string>();
+    this.invalidateSendDraft();
+  }
+
+  sendCoinLabels(utxo: WalletUtxo): string[] {
+    return [...new Set([
+      this.labelFor('output', this.outpoint(utxo)),
+      this.labelFor('addr', utxo.address),
+      this.labelFor('tx', utxo.txid),
+    ].filter((label): label is string => !!label))];
+  }
+
   addSendRecipient(): void {
-    if (!this.sendMax) this.sendRecipients = [...this.sendRecipients, { target: '', amountBtc: '' }];
+    if (!this.sendMax) {
+      this.sendRecipients = [...this.sendRecipients, { target: '', amountBtc: '' }];
+      this.invalidateSendDraft();
+    }
   }
 
   removeSendRecipient(index: number): void {
-    if (this.sendRecipients.length > 1) this.sendRecipients = this.sendRecipients.filter((_, i) => i !== index);
+    if (this.sendRecipients.length > 1) {
+      this.sendRecipients = this.sendRecipients.filter((_, i) => i !== index);
+      this.invalidateSendDraft();
+    }
   }
 
   applyRecipientUri(row: SendRecipientRow): void {
@@ -1340,6 +1479,7 @@ export class WatchComponent implements OnInit, OnDestroy {
       const parsed = parseBitcoinRecipient(row.target);
       row.target = parsed.address;
       if (parsed.amount != null) row.amountBtc = (parsed.amount / 100_000_000).toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
+      this.invalidateSendDraft();
       this.psbtError = '';
     } catch (e) {
       this.psbtError = e instanceof Error ? e.message : String(e);
@@ -1350,11 +1490,32 @@ export class WatchComponent implements OnInit, OnDestroy {
     return this.sendSelectedOutpoints.has(this.outpoint(utxo));
   }
 
+  isBuiltSendCoin(utxo: WalletUtxo): boolean {
+    const ref = this.outpoint(utxo);
+    return !!this.builtPsbt?.selected.some((selected) => this.outpoint(selected) === ref);
+  }
+
   toggleSendCoin(utxo: WalletUtxo): void {
     const selected = new Set(this.sendSelectedOutpoints);
     const outpoint = this.outpoint(utxo);
     selected.has(outpoint) ? selected.delete(outpoint) : selected.add(outpoint);
     this.sendSelectedOutpoints = selected;
+    this.invalidateSendDraft();
+  }
+
+  invalidateSendDraft(): void {
+    this.sendDraftGeneration++;
+    this.signedPreviewGeneration++;
+    if (!this.builtPsbt && !this.signedPreview && !this.broadcastTxid) {
+      return;
+    }
+    this.closePsbtQrExport();
+    this.builtPsbt = null;
+    this.signedPsbtInput = '';
+    this.signedPreview = null;
+    this.broadcastConfirmed = false;
+    this.broadcastError = '';
+    this.broadcastTxid = '';
   }
 
   private btcToSats(value: string): number {
@@ -1365,15 +1526,14 @@ export class WatchComponent implements OnInit, OnDestroy {
     return sats;
   }
 
-  private async nextChangeAddress(): Promise<DerivedAddress> {
-    if (!this.wallet) throw new Error('No active wallet.');
-    const nextIndex = this.lastUsed[1] + 1;
-    let change = this.wallet.addresses.find((address) => address.chain === 1 && address.index === nextIndex);
+  private async nextChangeAddress(wallet: WatchWallet, lastUsedIndex: number): Promise<DerivedAddress> {
+    const nextIndex = Math.max(lastUsedIndex + 1, this.localState.getChangeIndex(wallet) ?? 0);
+    let change = wallet.addresses.find((address) => address.chain === 1 && address.index === nextIndex);
     if (!change) {
-      [change] = await this.derivation.derive(this.wallet.descriptor, this.wallet.network, 1, nextIndex, 1);
-      this.wallet.addresses = [...this.wallet.addresses, change];
-      this.wallet.derivedCount[1] = Math.max(this.wallet.derivedCount[1], nextIndex + 1);
-      this.storage.save(this.wallet);
+      [change] = await this.derivation.derive(wallet.descriptor, wallet.network, 1, nextIndex, 1);
+      wallet.addresses = [...wallet.addresses, change];
+      wallet.derivedCount[1] = Math.max(wallet.derivedCount[1], nextIndex + 1);
+      this.storage.save(wallet);
       this.walletService.syncWallets(this.wallets);
     }
     if (!change.scriptPubKey) throw new Error('The change address is missing its locking script. Refresh the wallet and try again.');
@@ -1381,7 +1541,17 @@ export class WatchComponent implements OnInit, OnDestroy {
   }
 
   async buildSendPsbt(): Promise<void> {
-    if (!this.wallet || !this.network) return;
+    if (!this.wallet || !this.network || this.psbtBuilding) return;
+    const wallet = this.wallet;
+    const network = this.network;
+    const generation = this.sendDraftGeneration;
+    const lastUsedChange = this.lastUsed[1];
+    const feeRate = Number(this.sendFeeRate);
+    const sendMax = this.sendMax;
+    const manualCoins = this.sendManualCoins;
+    const rbf = this.sendRbf;
+    const locktime = Math.max(0, Math.floor(Number(this.sendLocktime) || 0));
+    const opReturn = this.sendOpReturn.trim() || undefined;
     this.closePsbtQrExport();
     this.psbtBuilding = true;
     this.psbtError = '';
@@ -1389,18 +1559,19 @@ export class WatchComponent implements OnInit, OnDestroy {
     this.signedPreview = null;
     this.broadcastConfirmed = false;
     try {
+      if (this.sendBlockedReason) throw new Error(this.sendBlockedReason);
       const recipients = this.sendRecipients.map((row) => {
         const parsed = parseBitcoinRecipient(row.target);
-        const converted = addressToScriptPubKey(parsed.address, this.network!);
-        if (!converted.scriptPubKey) throw new Error(`Invalid ${this.network} recipient address: ${parsed.address}`);
-        const value = this.sendMax ? 0 : (parsed.amount ?? this.btcToSats(row.amountBtc));
+        const converted = addressToScriptPubKey(parsed.address, network);
+        if (!converted.scriptPubKey) throw new Error(`Invalid ${network} recipient address: ${parsed.address}`);
+        const value = sendMax ? 0 : (parsed.amount ?? this.btcToSats(row.amountBtc));
         return { address: parsed.address, value, scriptPubKey: converted.scriptPubKey };
       });
       const available = this.sendSpendableUtxos.filter((utxo) =>
-        !this.sendManualCoins || this.sendSelectedOutpoints.has(this.outpoint(utxo)),
+        !manualCoins || this.sendSelectedOutpoints.has(this.outpoint(utxo)),
       );
-      if (this.sendManualCoins && !available.length) throw new Error('Select at least one spendable UTXO.');
-      const walletAddress = new Map(this.wallet.addresses.map((address) => [address.address, address]));
+      if (manualCoins && !available.length) throw new Error('Select at least one spendable UTXO.');
+      const walletAddress = new Map(wallet.addresses.map((address) => [address.address, address]));
       const txById = new Map(this.transactions.map((tx) => [tx.txid, tx]));
       const utxos: PsbtBuildUtxo[] = available.map((utxo) => {
         const derived = walletAddress.get(utxo.address);
@@ -1411,22 +1582,29 @@ export class WatchComponent implements OnInit, OnDestroy {
         )) : undefined;
         return { ...utxo, scriptPubKey: derived.scriptPubKey, chain: derived.chain, index: derived.index, previousTx };
       });
-      const change = await this.nextChangeAddress();
-      this.builtPsbt = await this.derivation.buildPsbt({
-        descriptor: this.wallet.descriptor,
-        network: this.network,
+      const change = await this.nextChangeAddress(wallet, lastUsedChange);
+      if (generation !== this.sendDraftGeneration || this.wallet?.id !== wallet.id) return;
+      const built = await this.derivation.buildPsbt({
+        descriptor: wallet.descriptor,
+        network,
         utxos,
         recipients,
         change: { address: change.address, scriptPubKey: change.scriptPubKey!, chain: 1, index: change.index },
-        feeRate: Number(this.sendFeeRate),
-        sendMax: this.sendMax,
-        useAllUtxos: this.sendManualCoins,
-        rbf: this.sendRbf,
-        locktime: Math.max(0, Math.floor(Number(this.sendLocktime) || 0)),
-        opReturn: this.sendOpReturn.trim() || undefined,
+        feeRate,
+        sendMax,
+        useAllUtxos: manualCoins,
+        rbf,
+        locktime,
+        opReturn,
       });
+      if (generation !== this.sendDraftGeneration || this.wallet?.id !== wallet.id) return;
+      this.builtPsbt = built;
+      if (built.changeValue) this.localState.setChangeIndex(wallet, change.index + 1);
+      this.openPsbtQrExport();
     } catch (e) {
-      this.psbtError = e instanceof Error ? e.message : String(e);
+      if (generation === this.sendDraftGeneration && this.wallet?.id === wallet.id) {
+        this.psbtError = e instanceof Error ? e.message : String(e);
+      }
     } finally {
       this.psbtBuilding = false;
       this.cd.markForCheck();
@@ -1450,7 +1628,13 @@ export class WatchComponent implements OnInit, OnDestroy {
       this.closePsbtQrExport();
       return;
     }
+    this.openPsbtQrExport();
+  }
+
+  private openPsbtQrExport(): void {
     if (!this.builtPsbt) return;
+    // Defend against stale template/runtime values while keeping UR as the interoperable default.
+    this.psbtQrEncoding = this.psbtQrEncoding === 'bbqr' ? 'bbqr' : 'ur';
     this.psbtQrReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.psbtQrExportVisible = true;
     this.preparePsbtQrExport();
@@ -1582,15 +1766,43 @@ export class WatchComponent implements OnInit, OnDestroy {
     await this.finalizeSignedPsbt();
   }
 
+  invalidateSignedPreview(): void {
+    this.signedPreviewGeneration++;
+    this.signedPreview = null;
+    this.broadcastConfirmed = false;
+    this.broadcastError = '';
+    this.broadcastTxid = '';
+  }
+
   async finalizeSignedPsbt(): Promise<void> {
+    const generation = ++this.signedPreviewGeneration;
+    const builtPsbt = this.builtPsbt;
     this.psbtError = '';
     this.signedPreview = null;
     this.broadcastConfirmed = false;
     this.broadcastTxid = '';
     try {
-      const finalized = await this.derivation.finalizePsbt(normalizePsbtText(this.signedPsbtInput));
-      const decoded = decodeRawTransaction(finalized.base64, this.stateService.network);
-      const tx = decoded.tx;
+      if (!builtPsbt) {
+        throw new Error('Build an unsigned PSBT here first so the signed transaction can be verified against its intended inputs and outputs.');
+      }
+      const signedBase64 = normalizePsbtText(this.signedPsbtInput);
+      const intended = decodeRawTransaction(builtPsbt.base64, this.stateService.network).tx;
+      const signed = decodeRawTransaction(signedBase64, this.stateService.network).tx;
+      const unsignedIdentity = (tx: Transaction): string => JSON.stringify({
+        version: tx.version,
+        locktime: tx.locktime,
+        inputs: tx.vin.map((input) => ({ txid: input.txid, vout: input.vout, sequence: input.sequence })),
+        outputs: tx.vout.map((output) => ({ value: output.value, script: output.scriptpubkey })),
+      });
+      if (unsignedIdentity(signed) !== unsignedIdentity(intended)) {
+        throw new Error('The signed PSBT does not match the unsigned transaction built here. Inputs, outputs, amounts, sequences, or locktime were changed.');
+      }
+      const finalized = await this.derivation.finalizePsbt(signedBase64);
+      if (generation !== this.signedPreviewGeneration || this.builtPsbt !== builtPsbt) return;
+      const tx = decodeRawTransaction(finalized.rawHex, this.stateService.network).tx;
+      // Raw transactions do not carry their input amounts. Copy the verified PSBT prevouts into
+      // the preview so the fee and input values are real rather than zero/negative.
+      tx.vin.forEach((input, index) => { input.prevout = intended.vin[index]?.prevout ?? null; });
       const inputs = tx.vin.map((input) => ({
         txid: input.txid, vout: input.vout, address: input.prevout?.scriptpubkey_address,
         value: input.prevout?.value ?? 0,
@@ -1601,6 +1813,9 @@ export class WatchComponent implements OnInit, OnDestroy {
       const fee = inputs.reduce((sum, input) => sum + input.value, 0)
         - outputs.reduce((sum, output) => sum + output.value, 0);
       const vsize = Math.ceil(tx.weight / 4);
+      if (!inputs.every((input) => input.value > 0) || !Number.isSafeInteger(fee) || fee < 0 || !vsize) {
+        throw new Error('The signed PSBT is missing reliable input amounts, so its fee cannot be verified.');
+      }
       this.signedPreview = { tx, rawHex: finalized.rawHex, inputs, outputs, fee, vsize, feeRate: fee / vsize };
     } catch (e) {
       this.psbtError = e instanceof Error ? e.message : String(e);
@@ -1649,6 +1864,7 @@ export class WatchComponent implements OnInit, OnDestroy {
       : (this.wallet ? [this.wallet] : []);
     const frozen = !owners.some((wallet) => this.localState.isFrozen(wallet, ref));
     owners.forEach((wallet) => this.localState.setFrozen(wallet, ref, frozen));
+    this.syncSendCoinSelection();
     this.cd.markForCheck();
   }
 

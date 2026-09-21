@@ -12,11 +12,13 @@
 
       <ng-container *ngIf="!model.viewingAll && model.wallet">
         <div class="wallet-title" *ngIf="!model.editingLabel">
-          <h2 class="section-title mb-0">{{ model.wallet.label }}</h2>
-          <button class="btn btn-sm btn-link rename-btn" (click)="startRename()"
-                  [disabled]="model.scanning" title="Rename wallet" i18n-title="watch.rename">
-            <fa-icon [icon]="['fas', 'pen']" [fixedWidth]="true"></fa-icon>
-          </button>
+          <h2 class="section-title mb-0">
+            <button class="wallet-label-button" type="button" (click)="startRename()"
+                    [disabled]="model.scanning" title="Edit wallet label" i18n-title="watch.rename">
+              <span>{{ model.wallet.label }}</span>
+              <fa-icon class="wallet-label-edit-icon" [icon]="['fas', 'pen']" [fixedWidth]="true"></fa-icon>
+            </button>
+          </h2>
         </div>
         <div class="wallet-rename" *ngIf="model.editingLabel">
           <input #renameInput type="text" class="form-control form-control-sm rename-input"
@@ -94,12 +96,14 @@
                  (blur)="run('saveLabelEdit')" (keyup.enter)="run('saveLabelEdit')"
                  (keydown.escape)="run('cancelLabelEdit'); $event.preventDefault()">
           <button *ngIf="!model.isEditingLabel('addr', receive.address)" type="button" class="inline-label-value"
+                  [class.is-empty]="!model.labelFor('addr', receive.address)"
                   (click)="run('startLabelEdit', 'addr', receive.address)">
-            {{ model.labelFor('addr', receive.address) || 'Add label' }}
+            <span class="inline-label-text">{{ model.labelFor('addr', receive.address) || 'Add label' }}</span>
+            <fa-icon class="label-edit-icon" [icon]="['fas', 'pen']" [fixedWidth]="true"></fa-icon>
           </button>
         </div>
       </div>
-      <div class="receive-qr"><app-qrcode [size]="180" [data]="receive.address"></app-qrcode></div>
+      <div class="receive-qr"><app-qrcode [size]="180" [margin]="4" [data]="receive.address"></app-qrcode></div>
     </section>
     <div class="receive-actions">
       <button class="btn btn-sm btn-outline-secondary" type="button" (click)="run('advanceReceiveAddress')"
@@ -135,8 +139,10 @@
                (blur)="run('saveLabelEdit')" (keyup.enter)="run('saveLabelEdit')"
                (keydown.escape)="run('cancelLabelEdit'); $event.preventDefault()">
         <button *ngIf="!model.isEditingLabel('addr', address.address)" type="button" class="inline-label-value"
+                [class.is-empty]="!model.labelFor('addr', address.address)"
                 (click)="run('startLabelEdit', 'addr', address.address)">
-          {{ model.labelFor('addr', address.address) || 'Add label' }}
+          <span class="inline-label-text">{{ model.labelFor('addr', address.address) || 'Add label' }}</span>
+          <fa-icon class="label-edit-icon" [icon]="['fas', 'pen']" [fixedWidth]="true"></fa-icon>
         </button>
       </div>
     </div>

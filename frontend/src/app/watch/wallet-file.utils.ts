@@ -94,9 +94,11 @@ function originKey(key: string, store: JsonObject): string {
   const derivation = object(store.keyDerivation) ? store.keyDerivation : store;
   const fingerprint = text(derivation.masterFingerprint) ?? text(store.root_fingerprint);
   const path = text(derivation.derivationPath) ?? text(store.derivation);
-  if (!fingerprint && !path) return key;
+  // A derivation path without its real master fingerprint is not a usable PSBT key origin.
+  // Keep the public key watchable, but do not fabricate an XFP that no signer can match.
+  if (!fingerprint) return key;
   const clean = path?.replace(/^m\/?/i, '').replace(/h/gi, "'");
-  return `[${fingerprint ?? '00000000'}${clean ? '/' + clean : ''}]${key}`;
+  return `[${fingerprint}${clean ? '/' + clean : ''}]${key}`;
 }
 
 const branches = (key: string): string =>
@@ -234,10 +236,31 @@ export function parseWalletFile(contents: string): WalletFileImport {
 }
 
 export function sparrowExport(wallet: WatchWallet): string {
+  const scriptTypes: Record<string, string> = {
+    pkh: 'P2PKH', wpkh: 'P2WPKH', sh_wpkh: 'P2SH_P2WPKH', shwpkh: 'P2SH_P2WPKH',
+    tr: 'P2TR', wsh: 'P2WSH', sh_wsh: 'P2SH_P2WSH', shwsh: 'P2SH_P2WSH',
+  };
+  const keys = Array.from(wallet.descriptor.matchAll(/(?:\[([0-9a-fA-F]{8})((?:\/[^\]]+)+)?\])?((?:xpub|tpub)[1-9A-HJ-NP-Za-km-z]+)/g));
+  if (!keys.length) throw new Error('This wallet descriptor has no exportable extended public keys.');
+  const threshold = Number(wallet.descriptor.match(/sortedmulti\((\d+),/)?.[1] ?? 1);
+  const multisig = keys.length > 1;
   return JSON.stringify({
     label: wallet.label,
+    policyType: multisig ? 'MULTI' : 'SINGLE',
+    scriptType: scriptTypes[wallet.scriptType.toLowerCase()] ?? wallet.scriptType,
+    numSignaturesRequired: threshold,
+    keystores: keys.map((match, index) => ({
+      label: multisig ? `Signer ${index + 1}` : wallet.label,
+      source: 'SW_WATCH',
+      walletModel: 'SPARROW',
+      keyDerivation: match[1] ? {
+        masterFingerprint: match[1].toUpperCase(),
+        derivationPath: match[2] ? `m${match[2].replace(/h/gi, "'")}` : 'm',
+      } : undefined,
+      extendedPublicKey: match[3],
+    })),
     descriptor: wallet.descriptor,
-    blockheight: 0,
+    blockHeight: 0,
     gapLimit: wallet.gapLimit,
     network: wallet.network,
     watchOnly: true,

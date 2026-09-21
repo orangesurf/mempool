@@ -1,3 +1,7 @@
+@use '../editable-label' as editable;
+
+@include editable.styles;
+
 .section-title { font-size: 1.35rem; }
 .wallet-title, .wallet-identity, .wallet-rename, .address-line, .inline-label,
 .receive-actions, .upcoming-address-main {
@@ -26,7 +30,25 @@
   font-size: .65rem;
   font-weight: 700;
 }
-.rename-btn { color: var(--transparent-fg); padding: 0 .35rem; }
+.wallet-label-button {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  padding: 0 0 .1rem;
+  color: var(--fg);
+  font: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dashed var(--transparent-fg);
+  cursor: text;
+}
+.wallet-label-button:hover:not(:disabled), .wallet-label-button:focus-visible {
+  border-bottom-color: var(--fg);
+  outline: none;
+}
+.wallet-label-edit-icon { color: var(--transparent-fg); font-size: .6em; }
 .rename-input { width: min(20rem, 60vw); font-size: 1.15rem; font-weight: 600; }
 .source-summary {
   padding: .75rem 1rem;
@@ -80,17 +102,6 @@
 }
 .upcoming-address:last-child { border-bottom: 0; }
 .upcoming-address-main { flex-wrap: wrap; }
-.inline-label-value {
-  max-width: 18rem;
-  padding: .1rem 0;
-  overflow: hidden;
-  color: var(--primary);
-  background: transparent;
-  border: 0;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .label-input { width: min(18rem, 100%); }
 @media (max-width: 767px) {
   .receive-section, .upcoming-address { align-items: flex-start; flex-direction: column; }

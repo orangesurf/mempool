@@ -134,8 +134,12 @@ describe('watch-key.utils', () => {
         .toBe('wsh(sortedmulti(2,xpubA/<0;1>/*,xpubB/<0;1>/*))');
     });
 
-    it('strips the descriptor checksum, which btcd will not accept', () => {
-      expect(toMultipathDescriptor('wpkh(xpub/<0;1>/*)#abcd1234')).toBe('wpkh(xpub/<0;1>/*)');
+    it('rejects a stale or mistyped descriptor checksum', () => {
+      expect(() => toMultipathDescriptor('wpkh(xpub/<0;1>/*)#abcd1234')).toThrowError(/checksum is invalid/);
+    });
+
+    it('accepts a valid BIP-380 checksum', () => {
+      expect(toMultipathDescriptor('raw(deadbeef)#89f8spxm')).toBe('raw(deadbeef)');
     });
   });
 

@@ -32,15 +32,28 @@ describe('wallet-file.utils', () => {
     expect(result.input.startsWith('wsh(sortedmulti(2,')).toBe(true);
   });
 
-  it('exports descriptor-only Sparrow JSON', () => {
+  it('never fabricates a master fingerprint when a wallet file only has a path', () => {
+    const result = parseWalletFile(JSON.stringify({
+      name: 'Watch only', policyType: 'SINGLE', scriptType: 'P2WPKH',
+      keystores: [{ extendedPublicKey: XPUB, keyDerivation: { derivationPath: 'm/84h/0h/0h' } }],
+    }));
+    expect(result.input.includes('00000000')).toBe(false);
+    expect(result.input.includes('[')).toBe(false);
+  });
+
+  it('exports native watch-only Sparrow JSON that round-trips through the importer', () => {
     const output = sparrowExport({
       label: 'Wallet', descriptor: `wpkh(${XPUB}/<0;1>/*)`, gapLimit: 20,
-      network: 'mainnet', source: XPUB,
+      network: 'mainnet', source: XPUB, scriptType: 'wpkh',
     } as WatchWallet);
     const parsed = JSON.parse(output);
     expect(parsed.descriptor).toContain('wpkh(');
+    expect(parsed.policyType).toBe('SINGLE');
+    expect(parsed.scriptType).toBe('P2WPKH');
+    expect(parsed.keystores[0].extendedPublicKey).toBe(XPUB);
     expect(parsed.source).toBeUndefined();
     expect(parsed.watchOnly).toBe(true);
+    expect(parseWalletFile(output).format).toBe('sparrow');
   });
   it('refuses seed fields and WIF descriptor keys', () => {
     expect(() => parseWalletFile(JSON.stringify({ descriptor: `wpkh(${XPUB}/0/*)`, master_private_extended_key: 'secret' })))

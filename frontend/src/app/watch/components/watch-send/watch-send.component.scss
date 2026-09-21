@@ -28,6 +28,12 @@
   align-items: end;
 }
 .remove-recipient { margin-bottom: .1rem; }
+.amount-maximum {
+  display: block;
+  margin-top: .25rem;
+  color: var(--transparent-fg);
+  font-size: .78rem;
+}
 .send-options {
   display: grid;
   grid-template-columns: minmax(8rem, .25fr) minmax(8rem, .25fr) auto;
@@ -35,15 +41,44 @@
   align-items: end;
 }
 .option-check { padding-bottom: .55rem; }
-.coin-picker { max-height: 15rem; overflow: auto; }
+.coin-selection-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+}
+.coin-selection-header > div:first-child { display: flex; align-items: baseline; flex-wrap: wrap; gap: .45rem; }
+.coin-selection-summary, .coin-selection-help { color: var(--transparent-fg); font-size: .8rem; }
+.coin-selection-actions { display: flex; margin-left: auto; }
+.coin-selection-actions .btn { padding-top: 0; padding-bottom: 0; }
+.coin-picker { max-height: 18rem; overflow: auto; }
+.coin-picker-automatic { background: var(--stat-box-bg); }
 .coin-picker-row, .preview-row {
   display: grid;
-  grid-template-columns: auto minmax(10rem, 1fr) auto minmax(0, .5fr);
+  grid-template-columns: auto minmax(10rem, 1fr) auto;
   gap: .65rem;
   align-items: center;
-  padding: .35rem 0;
+  padding: .45rem 0;
 }
+.coin-picker-row + .coin-picker-row { border-top: 1px solid var(--stat-box-bg); }
+.coin-description { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .6rem; min-width: 0; }
 .coin-outpoint, .preview-address { font-family: monospace; overflow-wrap: anywhere; }
+.coin-labels { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .3rem; }
+.coin-label {
+  display: inline-block;
+  max-width: 14rem;
+  padding: .08rem .4rem;
+  overflow: hidden;
+  color: var(--fg);
+  background: var(--active-bg);
+  border-radius: .5rem;
+  font-size: .72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.coin-label-empty { color: var(--transparent-fg); background: transparent; font-style: italic; }
+.coin-label-pending { color: var(--yellow); background: transparent; border: 1px solid currentColor; }
+.coin-label-selected { color: var(--green); background: transparent; border: 1px solid currentColor; }
 .privacy-note { font-size: .82rem; }
 .copy-field { display: inline-flex; align-items: center; gap: .25rem; }
 .psbt-qr-export, .psbt-qr-scanner {
@@ -58,6 +93,7 @@
   align-items: end;
 }
 .psbt-qr-stage { display: flex; justify-content: center; max-width: 100%; margin: 1rem auto; overflow: auto; }
+.psbt-qr-toggle { opacity: 1; color: var(--info); border-color: var(--info); }
 .psbt-qr-status, .psbt-qr-scan-progress, .signed-import-actions, .psbt-qr-controls {
   display: flex;
   align-items: center;
@@ -82,8 +118,8 @@ textarea.form-control { font-family: monospace; font-size: .85rem; word-break: b
 @media (max-width: 767px) {
   .recipient-row, .send-options, .psbt-qr-settings { grid-template-columns: 1fr; }
   .remove-recipient { justify-self: start; }
+  .coin-selection-actions { width: 100%; margin-left: 0; }
   .coin-picker-row { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .coin-picker-row .text-muted { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .psbt-qr-scan-progress .progress-bar { transition: none; }

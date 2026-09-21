@@ -25,10 +25,9 @@ export function computeUtxos(txs: Transaction[], addressMap: AddressMap): Wallet
 
   for (const tx of txs) {
     for (const vin of tx.vin || []) {
-      const addr = vin.prevout?.scriptpubkey_address;
-      if (addr && addressMap.has(addr)) {
-        spent.add(`${vin.txid}:${vin.vout}`);
-      }
+      // The outpoint is authoritative. Electrs can omit prevout metadata from an input, but
+      // that must never resurrect an output we already know belongs to this wallet.
+      spent.add(`${vin.txid}:${vin.vout}`);
     }
     (tx.vout || []).forEach((vout, index) => {
       const addr = vout.scriptpubkey_address;
@@ -87,9 +86,12 @@ export function computeWalletTxs(txs: Transaction[], addressMap: AddressMap): Wa
   }));
 }
 
-export function computeBalance(utxos: WalletUtxo[], txs: Transaction[], addressMap: AddressMap): WalletBalance {
-  const confirmed = utxos
-    .filter((u) => u.confirmed)
+export function computeBalance(txs: Transaction[], addressMap: AddressMap): WalletBalance {
+  // Confirmed balance is the chain-tip UTXO set before mempool transactions are applied. The
+  // final UTXO set cannot be used here: computeUtxos correctly removes a confirmed coin as soon
+  // as an unconfirmed transaction spends it, and adding that transaction's negative net value
+  // again would count the outgoing payment twice.
+  const confirmed = computeUtxos(txs.filter((tx) => tx.status?.confirmed), addressMap)
     .reduce((sum, u) => sum + u.value, 0);
 
   // Pending is the net effect of everything still in the mempool. It can be negative (an

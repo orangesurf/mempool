@@ -94,6 +94,8 @@ export interface WatchWallet {
   fingerprintIsMaster: boolean;
   /** The real derivation path, when a descriptor told us (e.g. "m/84'/0'/0'"). */
   originPath?: string;
+  /** Every signing key has a master fingerprint and an origin matching its xpub depth. */
+  signingOriginsComplete?: boolean;
   network: WatchNetwork;
   gapLimit: number;
   /** How many addresses have been derived on each chain. */

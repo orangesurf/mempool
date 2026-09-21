@@ -19,7 +19,26 @@
       <thead><tr><th>Address</th><th>Derivation</th><th class="text-end">Balance</th><th>Label</th><th>Status</th></tr></thead>
       <tbody>
         <tr *ngFor="let row of model.visibleAddressRows; trackBy: model.trackByAddress">
-          <td class="address-cell"><a [routerLink]="['/address/' | relativeUrl, row.derived.address]">{{ row.derived.address }}</a></td>
+          <td class="address-cell">
+            <div class="address-value">
+              <a [routerLink]="['/address/' | relativeUrl, row.derived.address]">{{ row.derived.address }}</a>
+              <span class="address-qr-control"
+                    (mouseenter)="showAddressQr(row.derived.address)"
+                    (mouseleave)="hideAddressQr(row.derived.address)"
+                    (focusin)="showAddressQr(row.derived.address)"
+                    (focusout)="hideAddressQr(row.derived.address)">
+                <button type="button" class="address-qr-button" title="Show address QR code"
+                        [attr.aria-label]="'Show QR code for ' + row.derived.address"
+                        [attr.aria-expanded]="qrAddress === row.derived.address"
+                        (click)="toggleAddressQr(row.derived.address)">
+                  <fa-icon [icon]="['fas', 'qrcode']" [fixedWidth]="true"></fa-icon>
+                </button>
+                <span class="address-qr-popover" *ngIf="qrAddress === row.derived.address">
+                  <app-qrcode [size]="200" [margin]="4" [data]="row.derived.address"></app-qrcode>
+                </span>
+              </span>
+            </div>
+          </td>
           <td class="text-muted explorer-path">{{ row.path }}</td>
           <td class="text-end"><app-amount [satoshis]="row.balance"></app-amount></td>
           <td class="label-cell">
@@ -27,8 +46,10 @@
                    [(ngModel)]="model.labelEditor!.draft" maxlength="200" autocomplete="off" autofocus
                    (blur)="run('saveLabelEdit')" (keyup.enter)="run('saveLabelEdit')" (keydown.escape)="run('cancelLabelEdit')">
             <button *ngIf="!model.isEditingLabel('addr', row.derived.address)" class="inline-label-value"
+                    [class.is-empty]="!model.labelFor('addr', row.derived.address)"
                     (click)="run('startLabelEdit', 'addr', row.derived.address)">
-              {{ model.labelFor('addr', row.derived.address) || 'Add label' }}
+              <span class="inline-label-text">{{ model.labelFor('addr', row.derived.address) || 'Add label' }}</span>
+              <fa-icon class="label-edit-icon" [icon]="['fas', 'pen']" [fixedWidth]="true"></fa-icon>
             </button>
           </td>
           <td><span class="address-status">{{ row.used ? 'Used' : 'Unused' }}</span></td>
