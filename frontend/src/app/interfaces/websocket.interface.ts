@@ -33,6 +33,11 @@ export interface WebsocketResponse {
   'track-address'?: string;
   'track-addresses'?: string[];
   'track-scriptpubkeys'?: string[];
+  // The server sends these when a track request exceeds MAX_TRACKED_ADDRESSES, and sets
+  // that client's tracking to null — i.e. it tracks NOTHING. Left unhandled, this is a
+  // silent failure: the client believes it is subscribed and simply never updates.
+  'track-addresses-error'?: string;
+  'track-scriptpubkeys-error'?: string;
   'track-asset'?: string;
   'track-mempool-block'?: number;
   'track-rbf'?: string;

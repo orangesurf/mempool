@@ -475,6 +475,18 @@ export class WebsocketService {
       this.stateService.multiAddressTransactions$.next(response['multi-address-transactions']);
     }
 
+    // The backend rejects an over-limit subscription by setting the client's tracking to
+    // null and sending this. Surfacing it is what turns a silent "nothing ever updates"
+    // into something a caller can fall back from.
+    if (response['track-addresses-error']) {
+      this.isTrackingAddresses = false;
+      this.stateService.trackAddressesError$.next(response['track-addresses-error']);
+    }
+
+    if (response['track-scriptpubkeys-error']) {
+      this.stateService.trackAddressesError$.next(response['track-scriptpubkeys-error']);
+    }
+
     if (response['block-transactions']) {
       response['block-transactions'].forEach((addressTransaction: Transaction) => {
         this.stateService.blockTransactions$.next(addressTransaction);
