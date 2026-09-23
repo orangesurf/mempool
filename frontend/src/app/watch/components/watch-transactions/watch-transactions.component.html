@@ -1,0 +1,18 @@
+<div class="title-tx"><h2 class="text-start">
+  <ng-container i18n="watch.transactions">Transactions</ng-container>
+  <span class="badge bg-secondary ms-2">{{ model.transactions.length }}</span>
+</h2></div>
+<div>
+  <p class="text-muted" *ngIf="!model.transactions.length && !model.scanning" i18n="watch.no-txs">
+    No transactions found for this wallet.
+  </p>
+  <!-- Labels use the shared wallet label editor beside each transaction id. -->
+  <app-transactions-list *ngIf="model.transactions.length"
+    [transactions]="model.transactions" [addresses]="model.addressStrings"
+    [showConfirmations]="true" [paginated]="true"
+    [acceleratedTxids]="model.acceleratedTxids"
+    [editableLabels]="true" [txLabels]="model.txLabelMap"
+    [walletAddressNavigation]="!model.viewingAll"
+    (walletAddressSelected)="model.openWalletAddress($event)"
+    (labelChanged)="model.setTxLabel($event.txid, $event.label)"></app-transactions-list>
+</div>

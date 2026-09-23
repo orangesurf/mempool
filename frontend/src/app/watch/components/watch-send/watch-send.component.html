@@ -1,0 +1,242 @@
+<div class="title-tx"><div class="send-heading">
+  <h2 class="text-start mb-0">Send with external signer</h2>
+  <span class="experimental-badge">EXPERIMENTAL</span>
+</div></div>
+<div class="send-page">
+  <div class="alert alert-warning send-warning" *ngIf="send.sendBlockedReason">
+    <span>{{ send.sendBlockedReason }}</span>
+    <button class="btn btn-sm btn-outline-secondary" type="button"
+            *ngIf="send.needsSigningDescriptor && !model.descriptorOriginAcknowledged"
+            (click)="model.openWalletTab('settings')">Review signing details</button>
+  </div>
+  <section class="box send-section send-compose">
+    <h3>Recipients</h3>
+
+    <div class="recipient-row mt-3" *ngFor="let recipient of send.sendRecipients; let i = index">
+      <div class="recipient-address">
+        <label class="form-label">Recipient address or BIP21 URI</label>
+        <div class="recipient-input-wrap">
+          <button type="button" class="paste-button" (mousedown)="$event.preventDefault()"
+                  (click)="send.pasteSendRecipient(i)" title="Paste address or BIP21 URI"
+                  aria-label="Paste address or BIP21 URI">
+            <fa-icon [icon]="['fas', 'paste']" [fixedWidth]="true"></fa-icon>
+          </button>
+          <input class="form-control" [(ngModel)]="recipient.target"
+                 (ngModelChange)="send.sendRecipientChanged()" (blur)="send.applyRecipientUri(recipient, i)"
+                 autocomplete="off" spellcheck="false" placeholder="bc1… or bitcoin:…">
+        </div>
+      </div>
+      <div class="recipient-amount">
+        <label class="form-label">Amount ({{ send.sendAmountUnit }})</label>
+        <div class="amount-input-wrap">
+          <input class="form-control" [(ngModel)]="recipient.amountBtc" (ngModelChange)="send.recipientAmountChanged(i)"
+                 [attr.inputmode]="send.sendAmountMode === 'sats' ? 'numeric' : 'decimal'"
+                 [placeholder]="send.isSendRecipientMax(i) && send.sendMaxCalculating ? 'Calculating…' : send.sendAmountPlaceholder">
+          <button *ngIf="!send.isSendRecipientMax(i)" type="button" class="max-link"
+                  [disabled]="!recipient.target.trim() || !send.sendSpendableUtxos.length"
+                  (click)="send.setSendMax(i)">(Max)</button>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-outline-secondary remove-recipient" type="button"
+              *ngIf="send.sendRecipients.length > 1" (click)="send.removeSendRecipient(i)">Remove</button>
+    </div>
+    <div class="send-actions-row mt-2">
+      <button class="btn btn-sm btn-outline-secondary" type="button" (click)="send.addSendRecipient()">Add recipient</button>
+      <span class="selected-balance text-muted">Selected balance: <app-amount [satoshis]="send.sendSelectedTotal" [noFiat]="true"></app-amount></span>
+    </div>
+
+  </section>
+
+    <details class="box send-section send-advanced">
+      <summary>Advanced transaction settings</summary>
+      <p class="advanced-helper text-muted mt-2 mb-0">This interface offers one locktime mode at a time for clarity, although Bitcoin transactions can carry both absolute nLockTime and per-input BIP68 nSequence constraints.</p>
+      <div class="advanced-settings mt-3">
+        <label class="advanced-setting"><span><strong>Transaction version</strong><small>Version 2 is required for relative locktime.</small></span>
+          <select class="form-select form-control" [(ngModel)]="send.sendVersion" (ngModelChange)="send.sendOutputOptionsChanged()">
+            <option [ngValue]="1">Version 1</option><option [ngValue]="2">Version 2</option>
+          </select>
+        </label>
+        <label class="advanced-setting locktime-setting"><span><strong>Locktime</strong><small>None, absolute nLockTime, or relative BIP68 delay.</small></span>
+          <select class="form-select form-control" [ngModel]="send.sendLocktimeMode" (ngModelChange)="send.setSendLocktimeMode($event)">
+            <option value="none">None</option>
+            <option value="absolute-height">Absolute · block height</option>
+            <option value="absolute-time">Absolute · date and time</option>
+            <option value="relative-blocks">Relative · blocks</option>
+            <option value="relative-time">Relative · time</option>
+          </select>
+        </label>
+        <label class="advanced-setting" *ngIf="send.sendAbsoluteLocktimeType === 'height'"><span><strong>Block height</strong><small>The transaction is held until this height.</small></span>
+          <input class="form-control" type="number" min="1" max="499999999" step="1" [(ngModel)]="send.sendLocktime" (ngModelChange)="send.sendOutputOptionsChanged()">
+        </label>
+        <label class="advanced-setting" *ngIf="send.sendAbsoluteLocktimeType === 'time'"><span><strong>Lock until</strong><small>Absolute timestamp for transaction nLockTime.</small></span>
+          <input class="form-control" type="datetime-local" [(ngModel)]="send.sendLocktimeDateTime" (ngModelChange)="send.sendOutputOptionsChanged()">
+        </label>
+        <div class="advanced-setting relative-slider-setting" *ngIf="send.sendRelativeLocktimeType !== 'none'">
+          <span><strong>Relative delay</strong><small>{{ send.sendRelativeLocktimeDescription }}</small></span>
+          <div class="relative-slider-control">
+            <input class="form-range" type="range" min="0" [max]="send.sendRelativeLocktimeMax" [step]="send.sendRelativeLocktimeStep"
+                   [(ngModel)]="send.sendRelativeLocktime" (ngModelChange)="send.sendOutputOptionsChanged()">
+            <div class="relative-range-labels"><span>0</span><span>Protocol maximum</span></div>
+          </div>
+        </div>
+        <label class="advanced-setting option-check" *ngIf="send.sendRelativeLocktimeType === 'none'">
+          <span><strong>Replace-by-fee (RBF)</strong><small *ngIf="send.sendRbf">Signal transaction fee bumping.</small><small *ngIf="!send.sendRbf">Not signaled; most miners use full-RBF and may still replace the transaction.</small></span>
+          <span class="form-check">
+          <input class="form-check-input" type="checkbox" [(ngModel)]="send.sendRbf" (ngModelChange)="send.sendOutputOptionsChanged()">
+          <span class="form-check-label">Enabled</span></span>
+        </label>
+      </div>
+      <label class="advanced-setting mt-2"><span><strong>Optional OP_RETURN</strong><small>Add a data output.</small></span>
+        <textarea class="form-control" rows="2" [(ngModel)]="send.sendOpReturn" (ngModelChange)="send.sendOutputOptionsChanged()" autocomplete="off"></textarea>
+      </label>
+    </details>
+
+    <section class="box send-section fee-section">
+      <h3>Transaction fees</h3>
+      <div class="fee-controls row row-cols-1 row-cols-lg-2">
+        <div class="col fee-rate-panel">
+          <label class="form-label" for="watch-fee-rate">Selected fee rate (sat/vB)</label>
+          <input id="watch-fee-rate" class="form-control fee-rate-input" type="number" min="0.1" step="any"
+                 [(ngModel)]="send.sendFeeRate" (ngModelChange)="send.setManualSendFeeRate()">
+          <small class="text-muted">Defaults to the current medium-priority rate.</small>
+        </div>
+        <div class="col card-wrapper">
+          <div class="main-title">Current recommendations</div>
+          <div class="card"><div class="card-body less-padding"><app-fees-box class="d-block" [showFiat]="send.sendFeeEstimate !== null" [transactionVsize]="send.sendFeeEstimate?.vsize ?? null" [markerFeeRate]="send.sendFeeRate" [selectable]="true" (feeRateSelected)="send.selectRecommendedFeeRate($event)"></app-fees-box></div></div>
+        </div>
+      </div>
+      <div class="fee-estimate-summary" *ngIf="send.sendFeeEstimate as estimate">
+        <span><small>Estimated transaction size</small><strong>{{ estimate.vsize | number:'1.0-0' }} vB</strong></span>
+        <span><small>Absolute fee</small><strong>{{ estimate.fee | number:'1.0-0' }} sats</strong><app-fiat [value]="estimate.fee"></app-fiat></span>
+      </div>
+    </section>
+
+    <section class="box send-section coin-selection-section">
+    <div class="coin-selection-header">
+      <div>
+        <span class="form-label mb-0">Spend from</span>
+        <span class="coin-selection-summary">
+          {{ send.sendSelectedUtxos.length }} of {{ send.sendSpendableUtxos.length }} UTXO(s)
+          · <app-amount [satoshis]="send.sendSelectedTotal" [noFiat]="true"></app-amount> selected
+        </span>
+      </div>
+      <div class="coin-selection-actions">
+        <button class="btn btn-sm btn-link" type="button" (click)="send.selectAllSendCoins()">Select all</button>
+        <button class="btn btn-sm btn-link" type="button" (click)="send.clearSendCoins()">Clear</button>
+      </div>
+    </div>
+    <p class="coin-selection-help text-muted mb-0">
+      Click a coin to include or exclude it.
+    </p>
+    <div class="coin-selection-legend" aria-label="Coin selection colors">
+      <span><i class="coin-swatch unselected"></i>Unselected</span>
+      <span><i class="coin-swatch selected"></i>Selected</span>
+    </div>
+    <div class="send-utxo-graph" *ngIf="send.sendGraphUtxos.length">
+      <app-utxo-graph [utxos]="send.sendGraphUtxos" [widget]="true" [height]="320" [selectable]="true"
+        [selectedOutpoints]="send.sendSelectedOutpoints"
+        [labels]="model.graphUtxoLabels" [labelDetails]="model.graphUtxoLabelDetails"
+        (utxoClick)="send.toggleSendGraphCoin($event)"></app-utxo-graph>
+    </div>
+    <p class="frozen-hidden-note text-muted" *ngIf="model.hasFrozenUtxos">
+      Frozen outputs are hidden. <button type="button" class="btn btn-link btn-sm" (click)="model.openWalletTab('utxos')">Manage them in UTXOs</button>
+    </p>
+    <p class="privacy-note text-muted mt-2">
+      Privacy: combining inputs links them on-chain; change is sent to the wallet's next internal
+      address and may reveal the payment pattern.
+    </p>
+
+    <button class="btn btn-primary" type="button" (click)="send.buildSendPsbt()"
+            [disabled]="send.psbtBuilding || send.sendMaxCalculating || !send.sendSelectedUtxos.length || !!send.sendBlockedReason">
+      {{ send.psbtBuilding ? 'Building…' : 'Build unsigned PSBT' }}
+    </button>
+    <div class="alert alert-danger mt-3" *ngIf="send.psbtError && !send.builtPsbt">{{ send.psbtError }}</div>
+    </section>
+
+    <div class="psbt-export mt-4" *ngIf="send.builtPsbt as psbt">
+      <h3>Unsigned PSBT ready for external signing</h3>
+      <div class="alert alert-warning mt-2 mb-0" *ngIf="psbt.feeRate > psbt.requestedFeeRate * 1.5">
+        The effective fee rate is higher than the requested {{ psbt.requestedFeeRate | number:'1.1-2' }} sat/vB because the remainder was too small to create change.
+      </div>
+      <div class="export-buttons mt-2">
+        <button class="btn btn-sm btn-primary" type="button" (click)="send.downloadPsbt()">Download .psbt</button>
+        <span class="copy-field">Base64 <app-clipboard [text]="psbt.base64" [leftPadding]="false"></app-clipboard></span>
+        <span class="copy-field">Hex <app-clipboard [text]="psbt.hex" [leftPadding]="false"></app-clipboard></span>
+      </div>
+      <p class="text-muted mt-2 mb-0">Move this PSBT to your signer. No signature is created in this app.</p>
+
+      <div class="psbt-qr-export mt-3" *ngIf="send.psbtQrExportVisible && send.psbtQrExport as qr">
+        <button class="qr-settings-toggle" type="button" (click)="send.togglePsbtQrSettings()" title="Animated QR settings" aria-label="Animated QR settings">
+          <fa-icon [icon]="['fas', 'cog']" [fixedWidth]="true"></fa-icon>
+        </button>
+        <div class="psbt-qr-settings" *ngIf="send.psbtQrSettingsVisible">
+          <label><span class="form-label">Encoding</span>
+            <select class="form-control" [(ngModel)]="send.psbtQrEncoding"
+                    (ngModelChange)="send.changePsbtQrEncoding($event)">
+              <option value="ur">UR crypto-psbt (recommended)</option>
+              <option value="bbqr">BBQr PSBT (Coldcard)</option>
+            </select>
+          </label>
+          <label *ngIf="qr.frames.length > 1">
+            <span class="form-label">Frame rate</span>
+            <select class="form-control" [ngModel]="send.psbtQrSpeed" (ngModelChange)="send.setPsbtQrSpeed($event)">
+              <option value="slow">Slow</option><option value="medium">Medium</option><option value="fast">Fast</option>
+            </select>
+          </label>
+          <label><span class="form-label">Density</span>
+            <select class="form-control" [ngModel]="send.psbtQrDensity" (ngModelChange)="send.changePsbtQrDensity($event)">
+              <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
+            </select>
+          </label>
+        </div>
+        <div class="psbt-qr-stage">
+          <app-qrcode [size]="320" [margin]="4" [data]="qr.frames[send.psbtQrFrameIndex]"></app-qrcode>
+        </div>
+        <div class="psbt-qr-status"><span>Frame {{ send.psbtQrFrameIndex + 1 }} / {{ qr.frames.length }}</span></div>
+        <div class="psbt-qr-controls" *ngIf="qr.frames.length > 1">
+          <button class="btn btn-sm btn-outline-secondary" type="button" (click)="send.togglePsbtQrPlayback()">
+            {{ send.psbtQrPlaying ? 'Pause' : 'Play' }}
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" type="button" (click)="send.nextPsbtQrFrame()">Next frame</button>
+        </div>
+        <p class="text-muted mt-2 mb-0" *ngIf="send.psbtQrReducedMotion">
+          Reduced motion is enabled, so playback starts paused. Use Play or Next frame when ready.
+        </p>
+      </div>
+    </div>
+
+    <div class="signed-import mt-4" *ngIf="send.builtPsbt">
+      <h3>Import signed transaction</h3>
+      <p class="text-muted mb-2">Import the matching signed PSBT or finalized transaction hex from your external signer to verify it before broadcast.</p>
+      <div class="signed-import-actions mb-2">
+        <label class="btn btn-sm btn-outline-secondary mb-0">Choose signed .psbt
+          <input type="file" accept=".psbt,application/psbt" hidden (change)="send.importSignedPsbtFile($event)">
+        </label>
+        <button class="btn btn-sm btn-outline-secondary" type="button" *ngIf="!send.psbtQrScanning" (click)="startQrScan()">Scan animated QR</button>
+      </div>
+      <div class="psbt-qr-scanner mb-3" *ngIf="send.psbtQrScanning || send.psbtQrScanProgress || send.psbtQrScanError">
+        <div class="psbt-qr-video" *ngIf="send.psbtQrScanning"><video #psbtQrVideo muted playsinline></video></div>
+        <div class="psbt-qr-scan-progress" *ngIf="send.psbtQrScanProgress as scan">
+          <div class="progress"><div class="progress-bar" role="progressbar" [style.width.%]="scan.percent * 100"
+               [attr.aria-valuenow]="scan.percent * 100" aria-valuemin="0" aria-valuemax="100"></div></div>
+          <span>{{ scan.protocol === 'ur' ? 'UR' : (scan.protocol === 'bbqr' ? 'BBQr' : 'Single-frame PSBT') }}</span>
+          <span>{{ scan.received }} / {{ scan.needed }} parts received</span>
+        </div>
+        <div class="alert alert-danger mt-2 mb-2" *ngIf="send.psbtQrScanError">{{ send.psbtQrScanError }}</div>
+        <div class="psbt-qr-controls">
+          <button class="btn btn-sm btn-outline-secondary" type="button" *ngIf="send.psbtQrScanning" (click)="send.stopSignedPsbtQrScan()">Stop camera</button>
+          <button class="btn btn-sm btn-outline-secondary" type="button" *ngIf="send.psbtQrScanning && send.psbtQrScanProgress" (click)="send.resetSignedPsbtQrScan()">Reset parts</button>
+        </div>
+      </div>
+      <textarea class="form-control" rows="4" [(ngModel)]="send.signedPsbtInput" (ngModelChange)="send.invalidateSignedPreview()"
+                placeholder="Paste signed PSBT (base64 or hex) or finalized transaction hex" spellcheck="false"></textarea>
+      <button class="btn btn-sm btn-primary mt-2" type="button" (click)="send.previewSignedTransaction()"
+              [disabled]="!send.signedPsbtInput.trim()">Open transaction preview</button>
+      <div class="alert alert-danger mt-3 mb-0" *ngIf="send.psbtError">{{ send.psbtError }}</div>
+    </div>
+</div>
+
+<div class="send-caution box mt-3">
+  <strong>Watch-only safety</strong>
+  <span>This app never has private keys and never signs. Carefully verify every address and amount on your external signer. Broadcasting reveals the transaction to this site's configured mempool API.</span>
+</div>

@@ -1,0 +1,57 @@
+<div class="title-tx address-title"><h2 class="text-start">Address explorer</h2>
+  <div class="address-summary" *ngIf="model.addressStats as stats">
+    <span><strong>{{ stats.total }}</strong> derived</span>
+    <span><strong>{{ stats.used }}</strong> used</span>
+    <span><strong>{{ stats.withBalance }}</strong> with balance</span>
+  </div>
+</div>
+<div class="box">
+  <div class="explorer-controls">
+    <select class="form-control form-control-sm" [(ngModel)]="model.addressChainFilter">
+      <option value="all">Receive + change</option>
+      <option value="receive">Receive only</option>
+      <option value="change">Change only</option>
+    </select>
+  </div>
+  <p class="text-muted" *ngIf="!model.visibleAddressRows.length">No addresses match these filters.</p>
+  <div class="table-responsive" *ngIf="model.visibleAddressRows.length">
+    <table class="table table-borderless table-striped table-sm address-table">
+      <thead><tr>
+        <th class="status-heading"><button type="button" (click)="model.cycleAddressStatusFilter()" [title]="'Status: ' + model.addressStatusFilter">{{ model.addressStatusFilter === 'all' ? 'All' : (model.addressStatusFilter === 'unused' ? 'Unused' : 'Used') }}</button></th>
+        <th>Address</th>
+        <th *ngIf="model.showAddressDerivationPath">Derivation</th>
+        <th>Label</th>
+        <th class="text-end balance-heading"><button type="button" class="balance-filter" (click)="model.cycleAddressBalanceFilter()">Balance<span *ngIf="model.addressBalanceFilter === 'positive'"> · Has balance</span></button><button type="button" class="balance-sort" (click)="model.cycleAddressBalanceSort()" title="Sort by balance" aria-label="Sort by balance"><fa-icon [icon]="['fas', model.addressBalanceSort === 'asc' ? 'caret-up' : 'caret-down']" [fixedWidth]="true"></fa-icon></button></th>
+      </tr></thead>
+      <tbody>
+        <tr *ngFor="let row of model.visibleAddressRows; trackBy: model.trackByAddress"
+            [id]="'wallet-address-' + row.derived.address" tabindex="-1"
+            [class.used-address]="row.used" [class.highlighted-address]="model.highlightedAddress === row.derived.address">
+          <td class="status-cell"><span class="status-dot" [class.used]="row.used" [title]="row.used ? 'Used' : 'Unused'"></span></td>
+          <td class="address-cell">
+            <div class="address-value">
+              <a [routerLink]="['/address/' | relativeUrl, row.derived.address]">{{ row.derived.address }}</a>
+              <app-address-qr-copy [address]="row.derived.address" clipboardSize="small"></app-address-qr-copy>
+              <ng-container *ngIf="model.addressTransactionLabels(row.derived.address) as transactionLabels">
+                <span class="transaction-note" *ngIf="transactionLabels.length"
+                      [ngbTooltip]="'Transaction: ' + transactionLabels.join(' · ')" [openDelay]="50"
+                      aria-label="Related transaction label">
+                  <fa-icon [icon]="['fas', 'note-sticky']" [fixedWidth]="true"></fa-icon>
+                </span>
+              </ng-container>
+            </div>
+          </td>
+          <td *ngIf="model.showAddressDerivationPath" class="text-muted explorer-path">{{ row.path }}</td>
+          <td class="label-cell">
+            <app-wallet-label-editor [value]="model.labelFor('addr', row.derived.address)"
+              [placeholder]="model.addressDisplayLabel(row.derived.address) || 'Add label'"
+              (saved)="model.setInlineLabel('addr', row.derived.address, $event)"></app-wallet-label-editor>
+          </td>
+          <td class="text-end balance-cell" [class.zero-balance]="row.balance === 0">
+            <span *ngIf="row.balance === 0">0</span><span *ngIf="row.balance !== 0">{{ row.balance / 100000000 | number:'1.8-8' }}</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

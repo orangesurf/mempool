@@ -1,0 +1,28 @@
+.explorer-controls { display: flex; align-items: center; gap: 1rem; margin-bottom: .75rem; }
+.explorer-controls .form-control { width: auto; }
+.address-title { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.address-summary { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .45rem 1rem; color: var(--transparent-fg); font-size: .8rem; }
+.address-summary strong { color: var(--fg); font-variant-numeric: tabular-nums; }
+.address-cell { max-width: 24rem; font-family: monospace; word-break: break-all; }
+.address-value { display: flex; align-items: center; gap: .35rem; }
+.address-value > a { min-width: 0; }
+.transaction-note { flex: 0 0 auto; color: var(--transparent-fg); cursor: help; font-size: .82rem; }
+.transaction-note:hover { color: var(--primary); }
+.highlighted-address > td { background: color-mix(in srgb, var(--primary) 12%, var(--active-bg)); }
+.highlighted-address > td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
+.highlighted-address:focus { outline: none; }
+.explorer-path { white-space: nowrap; }
+.zero-balance { color: var(--transparent-fg); }
+.used-address .address-value > a { color: var(--transparent-fg); }
+.status-heading, .status-cell { width: 5.25rem; min-width: 5.25rem; text-align: center; }
+.status-heading button, .balance-filter, .balance-sort { padding: 0; color: inherit; background: transparent; border: 0; font: inherit; }
+.status-heading button { width: 100%; font-size: inherit; font-weight: inherit; }
+.status-heading button:hover, .balance-filter:hover, .balance-sort:hover { color: var(--primary); }
+.status-dot { display: inline-block; width: .65rem; height: .65rem; border: 1px solid #fff; border-radius: 50%; vertical-align: middle; }
+.status-dot.used { border-color: var(--transparent-fg); background: var(--transparent-fg); }
+.balance-heading { white-space: nowrap; }
+.balance-sort { margin-left: .35rem; color: var(--transparent-fg); }
+.balance-cell { min-width: 9.5rem; font-family: monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.label-cell { min-width: 10rem; }
+.label-cell app-wallet-label-editor { width: min(18rem, 100%); }
+@media (max-width: 767px) { .address-title { align-items: flex-start; flex-direction: column; } .address-summary { justify-content: flex-start; } }

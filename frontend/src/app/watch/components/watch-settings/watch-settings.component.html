@@ -1,0 +1,127 @@
+<div class="title-tx"><h2 class="text-start" i18n="watch.details-title">Wallet settings</h2></div>
+<div class="box" *ngIf="model.wallet">
+  <div class="alert alert-danger" *ngIf="model.error">{{ model.error }}</div>
+  <table class="table table-borderless table-striped settings-table">
+    <tbody>
+      <tr>
+        <td>Wallet name</td>
+        <td>
+          <button *ngIf="!model.editingLabel" type="button" class="settings-name" (click)="startRename()" [disabled]="model.scanning">{{ model.wallet.label }}</button>
+          <div class="wallet-rename" *ngIf="model.editingLabel">
+            <input #renameInput type="text" class="form-control form-control-sm" [(ngModel)]="model.labelDraft"
+                   (keyup.enter)="model.saveRename()" (keyup.escape)="model.cancelRename()" maxlength="60" autocomplete="off">
+            <button class="btn btn-sm btn-primary" (click)="model.saveRename()">Save</button>
+            <button class="btn btn-sm btn-outline-secondary" (click)="model.cancelRename()">Cancel</button>
+          </div>
+        </td>
+      </tr>
+      <tr *ngIf="model.wallet.fingerprint">
+        <td>
+          Wallet fingerprint
+          <fa-icon class="fingerprint-info" [icon]="['fas', 'info-circle']" [fixedWidth]="true"
+                   [ngbTooltip]="model.wallet.fingerprintIsMaster ? 'Identifies the signing wallet that owns this key.' : 'Fingerprint of the imported account key; a full descriptor includes the master fingerprint.'"></fa-icon>
+        </td>
+        <td class="mono">{{ model.wallet.fingerprint | uppercase }}</td>
+      </tr>
+      <tr>
+        <td i18n="watch.detail.address-type">Address type</td>
+        <td>{{ model.scriptTypeName }}<span class="text-muted" *ngIf="model.scriptTypeCode !== model.scriptTypeName"> · {{ model.scriptTypeCode }}</span></td>
+      </tr>
+      <tr *ngIf="model.derivationPathLabel">
+        <td i18n="watch.detail.path">Derivation path</td>
+        <td class="mono">{{ model.derivationPathLabel }}</td>
+      </tr>
+      <tr>
+        <td>Address display</td>
+        <td>
+          <label class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" [ngModel]="model.showAddressDerivationPath"
+                   (ngModelChange)="model.setShowAddressDerivationPath($event)">
+            <span class="form-check-label">Show derivation path on address page</span>
+          </label>
+        </td>
+      </tr>
+      <tr>
+        <td i18n="watch.detail.addresses">Addresses derived</td>
+        <td>
+          {{ model.wallet.addresses.length }}
+          <span class="text-muted">(<ng-container i18n="watch.detail.receive">receive</ng-container> {{ model.wallet.derivedCount[0] }},
+            <ng-container i18n="watch.detail.change">change</ng-container> {{ model.wallet.derivedCount[1] }})</span>
+        </td>
+      </tr>
+      <tr>
+        <td i18n="watch.detail.gap-limit">Gap limit</td>
+        <td>
+          <div class="gap-limit-control">
+            <input type="number" min="5" max="1000" class="form-control form-control-sm"
+                   [(ngModel)]="model.settingsGapLimit" [disabled]="model.scanning">
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    [disabled]="model.scanning || model.settingsGapLimit === model.wallet.gapLimit"
+                    (click)="model.updateGapLimit()">Apply and rescan</button>
+          </div>
+          <small class="text-warning d-block mt-1" *ngIf="model.settingsGapLimit > 20">
+            This is a non-standard gap limit. Other wallets may stop after 20 unused addresses, making funds appear missing and harder to recover until their gap limit is increased.
+          </small>
+        </td>
+      </tr>
+      <tr><td i18n="watch.detail.network">Network</td><td>{{ model.wallet.network }}</td></tr>
+      <tr>
+        <td i18n="watch.detail.descriptor">Descriptor</td>
+        <td>
+          <div class="descriptor-box">
+            <code class="descriptor">{{ model.wallet.descriptor }}</code>
+            <app-clipboard [text]="model.wallet.descriptor" size="normal"></app-clipboard>
+          </div>
+          <div class="descriptor-notice" role="note" *ngIf="model.needsSigningDescriptor && !model.descriptorOriginAcknowledged">
+            <div class="descriptor-notice-copy">
+              <strong>Missing signing details</strong>
+              <span>A full descriptor helps hardware wallets identify the correct key automatically. You can still build a PSBT with this public key, but your signer may need manual setup.</span>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary descriptor-acknowledge" type="button"
+                    (click)="model.acknowledgeDescriptorOrigin()">Acknowledge and continue</button>
+          </div>
+          <small class="text-muted d-block mt-1" *ngIf="model.needsSigningDescriptor && model.descriptorOriginAcknowledged">
+            Signing details are incomplete. You acknowledged that the external signer may require manual key-path setup.
+          </small>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <section class="settings-group">
+    <h3>Import</h3>
+    <p class="text-muted mb-2">Add another public wallet, or add labels to matching loaded wallets. Nothing here imports private keys.</p>
+    <div class="settings-actions">
+      <button class="btn btn-sm btn-outline-secondary" type="button" (click)="walletFile.click()">Import wallet file</button>
+      <input #walletFile class="d-none" type="file" accept=".txt,.json,.wallet,application/json,text/plain"
+             (change)="model.beginWalletFileImport($event)">
+      <button class="btn btn-sm btn-outline-secondary" type="button" (click)="labelFile.click()">Import label file</button>
+      <input #labelFile class="d-none" type="file"
+             accept=".jsonl,.json,.csv,application/jsonl,application/json,text/csv,text/plain"
+             (change)="model.importLabels($event)">
+    </div>
+    <small class="text-muted d-block">Wallet files: output descriptor, Sparrow JSON, or Electrum JSON.</small>
+    <small class="text-muted d-block">Label files: BIP-329 JSONL or Sparrow transaction CSV.</small>
+    <small class="text-muted d-block mt-1" *ngIf="model.walletFileMessage">{{ model.walletFileMessage }}</small>
+    <small class="text-muted" *ngIf="model.labelTransferMessage">{{ model.labelTransferMessage }}</small>
+  </section>
+
+  <section class="settings-group">
+    <h3>Export</h3>
+    <p class="text-muted mb-2">Download public wallet data, local labels, or accounting tables from this browser.</p>
+    <div class="settings-actions">
+      <button class="btn btn-sm btn-outline-secondary" (click)="model.exportDescriptor()">Export descriptor</button>
+      <button class="btn btn-sm btn-outline-secondary" (click)="model.exportSparrow()">Export Sparrow wallet JSON</button>
+      <button class="btn btn-sm btn-outline-secondary" type="button" (click)="model.exportLabels()">Export BIP-329 labels</button>
+      <button class="btn btn-sm btn-outline-secondary" (click)="model.exportUtxosCsv()">Export UTXOs CSV</button>
+      <button class="btn btn-sm btn-outline-secondary" (click)="model.exportTransactionsCsv()" [disabled]="!model.transactions.length">Export transactions CSV</button>
+    </div>
+    <small class="text-muted" *ngIf="model.exportTransferMessage">{{ model.exportTransferMessage }}</small>
+  </section>
+
+  <section class="settings-group danger-zone">
+    <h3>Local wallet data</h3>
+    <p class="text-muted mb-2">Removes this watch-only wallet and its local labels from this browser.</p>
+    <button class="btn btn-sm btn-outline-danger" (click)="model.forget()" [disabled]="model.scanning" i18n="watch.forget">Forget wallet</button>
+  </section>
+</div>

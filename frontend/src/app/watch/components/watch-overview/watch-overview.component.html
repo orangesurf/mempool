@@ -1,0 +1,69 @@
+<section class="overview-widget overview-primary">
+  <div class="widget-heading">
+    <h2 i18n="watch.balance">Balance</h2>
+    <button class="btn btn-sm btn-outline-info" (click)="model.refresh()" [disabled]="model.scanning">
+      <span *ngIf="model.scanning" class="spinner-border spinner-border-sm me-1"></span>
+      <ng-container i18n="watch.refresh">Refresh</ng-container>
+    </button>
+  </div>
+  <div class="box widget-box balance-history-widget">
+    <ng-container *ngIf="!model.initialWalletLoading; else walletStateLoading">
+      <div class="balance-values">
+        <div class="balance-value-row">
+          <span class="stat-label" i18n="watch.confirmed">Confirmed</span>
+          <span class="balance-amount"><span class="amount-sign" aria-hidden="true"></span><span class="bitcoin-value"><app-amount [satoshis]="model.balance.confirmed" [forceBtc]="true" [ignoreViewMode]="true" [noFiat]="true"></app-amount></span><span class="fiat"><span class="fiat-sign" aria-hidden="true"></span><app-fiat [value]="model.balance.confirmed"></app-fiat></span></span>
+        </div>
+        <div class="balance-value-row">
+          <span class="stat-label">In mempool</span>
+          <span class="balance-amount" [class.text-success]="model.balance.pending > 0" [class.text-danger]="model.balance.pending < 0" [class.zero-balance]="model.balance.pending === 0"><span class="amount-sign">{{ model.balance.pending > 0 ? '+' : (model.balance.pending < 0 ? '−' : '') }}</span><span class="bitcoin-value"><app-amount [satoshis]="model.absoluteSats(model.balance.pending)" [forceBtc]="true" [ignoreViewMode]="true" [noFiat]="true"></app-amount></span><span class="fiat"><span class="fiat-sign">{{ model.balance.pending > 0 ? '+' : (model.balance.pending < 0 ? '−' : '') }}</span><app-fiat [value]="model.absoluteSats(model.balance.pending)"></app-fiat></span></span>
+        </div>
+      </div>
+      <div class="balance-history">
+        <app-address-graph *ngIf="model.transactions.length; else noHistory" [addressSummary$]="model.walletSummary$" period="all" left="80" />
+        <ng-template #noHistory><p class="text-muted mb-0">No balance history yet.</p></ng-template>
+      </div>
+    </ng-container>
+    <ng-template #walletStateLoading>
+      <div class="wallet-state-loading" role="status" aria-live="polite" aria-busy="true">
+        <div class="wallet-loading-track" role="progressbar" aria-label="Loading wallet"
+             [attr.aria-valuetext]="model.walletLoadingTitle">
+          <span class="wallet-loading-bar" aria-hidden="true"></span>
+        </div>
+        <span class="visually-hidden">{{ model.walletLoadingTitle }}</span>
+      </div>
+    </ng-template>
+  </div>
+</section>
+<div class="alert alert-danger mt-3" *ngIf="model.error">{{ model.error }}</div>
+<div class="alert alert-info mt-3" *ngIf="model.liveTrackingDegraded" i18n="watch.degraded">Live updates aren’t available for this wallet. It will refresh on each new block instead.</div>
+<div class="alert alert-warning mt-3" *ngIf="model.truncated" i18n="watch.truncated">This wallet has too much history to load completely in the browser. The balance and transactions are <strong>incomplete</strong>.</div>
+<div class="overview-grid" *ngIf="!model.viewingAll && !model.initialWalletLoading">
+  <section class="overview-widget">
+    <div class="widget-heading"><h2 i18n="watch.quick-receive">Quick receive</h2><button class="btn btn-sm btn-link" type="button" (click)="model.openWalletTab('addresses')">All addresses</button></div>
+    <div class="box widget-box quick-receive">
+      <ng-container *ngIf="model.currentReceiveAddress as receive">
+        <section class="receive-section">
+          <div class="receive-copy">
+            <div class="stat-label" i18n="watch.next-address">Next unused receive address</div>
+            <div class="address-line"><a [routerLink]="['/address/' | relativeUrl, receive.address]" class="next-address">{{ receive.address }}</a><app-clipboard [text]="receive.address" [leftPadding]="false"></app-clipboard></div>
+            <app-wallet-label-editor class="receive-label-row" prefix="Label:"
+              [value]="model.labelFor('addr', receive.address)"
+              (saved)="model.setInlineLabel('addr', receive.address, $event)"></app-wallet-label-editor>
+            <button class="btn btn-sm btn-outline-secondary" type="button" (click)="model.advanceReceiveAddress()" [disabled]="!model.upcomingReceiveAddresses.length" i18n="watch.receive.advance">Use next address</button>
+          </div>
+          <div class="receive-qr-column">
+            <div class="receive-qr"><app-qrcode [size]="170" [margin]="4" [data]="receive.address"></app-qrcode></div>
+            <div class="receive-path">{{ model.receiveDerivationPath(receive) }}</div>
+          </div>
+        </section>
+      </ng-container>
+    </div>
+  </section>
+  <section class="overview-widget">
+    <div class="widget-heading"><h2 i18n="watch.recent-transactions">Recent transactions</h2><button class="btn btn-sm btn-link" type="button" (click)="model.openWalletTab('transactions')">All transactions</button></div>
+    <div class="box widget-box recent-transactions">
+      <p class="text-muted mb-0" *ngIf="!model.transactions.length">No transactions yet.</p>
+      <app-recent-transactions-list *ngIf="model.transactions.length" [widget]="true" [walletTransactions]="model.recentTransactions" [walletValues]="model.recentTransactionValues" [acceleratedTxids]="model.acceleratedTxids"></app-recent-transactions-list>
+    </div>
+  </section>
+</div>

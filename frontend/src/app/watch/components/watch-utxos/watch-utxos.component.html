@@ -1,0 +1,48 @@
+<div class="title-tx"><h2 class="text-start">
+  <ng-container i18n="watch.utxos">Unspent outputs</ng-container>
+  <span class="badge bg-secondary ms-2">{{ model.utxos.length }}</span>
+</h2></div>
+<div class="box">
+  <p class="text-muted" *ngIf="!model.utxos.length" i18n="watch.no-utxos">This wallet has no unspent outputs.</p>
+  <div class="utxo-bubble-graph mb-3" *ngIf="model.utxos.length">
+    <app-utxo-graph [utxos]="model.graphUtxos" [widget]="true" [height]="300"
+      [frozenOutpoints]="model.graphFrozenOutpoints" [labels]="model.graphUtxoLabels"
+      [labelDetails]="model.graphUtxoLabelDetails"
+      [labelSlots]="model.graphLabelSlots"></app-utxo-graph>
+  </div>
+  <div class="table-responsive" *ngIf="model.utxos.length">
+    <table class="table table-borderless table-striped table-sm">
+      <thead><tr>
+        <th class="text-center" i18n="watch.coin-control">Freeze</th>
+        <th class="text-end" i18n="watch.utxo-value">Value</th>
+        <th i18n="watch.labels.label">Label</th>
+        <th i18n="watch.utxo-address">Address</th>
+        <th i18n="watch.utxo-output">Output</th>
+      </tr></thead>
+      <tbody>
+        <tr *ngFor="let utxo of model.utxos; trackBy: model.trackByUtxo" [class.frozen-utxo]="model.isFrozen(utxo)">
+          <td class="text-center coin-control-cell">
+            <button class="freeze-button" [class.frozen]="model.isFrozen(utxo)" type="button"
+                    (click)="model.toggleFrozen(utxo)" [title]="model.isFrozen(utxo) ? 'Unfreeze output' : 'Freeze output'"
+                    [attr.aria-label]="model.isFrozen(utxo) ? 'Unfreeze output' : 'Freeze output'">
+              <fa-icon [icon]="['fas', 'snowflake']" [fixedWidth]="true"></fa-icon>
+            </button>
+          </td>
+          <td class="text-end value-cell">
+            <app-amount [satoshis]="utxo.value"></app-amount>
+            <span class="badge bg-warning ms-1" *ngIf="!utxo.confirmed" i18n="watch.unconfirmed">unconfirmed</span>
+          </td>
+          <td class="label-cell">
+            <app-wallet-label-editor [value]="model.labelFor('output', model.outpoint(utxo))"
+              [placeholder]="model.utxoInheritedLabel(utxo) || 'Add label'"
+              (draftChange)="model.setUtxoLabelDraft(model.outpoint(utxo), $event)"
+              (focusChange)="model.setUtxoLabelFocus(model.outpoint(utxo), $event)"
+              (saved)="model.setInlineLabel('output', model.outpoint(utxo), $event)"></app-wallet-label-editor>
+          </td>
+          <td class="address-cell"><a [routerLink]="['/address/' | relativeUrl, utxo.address]">{{ utxo.address }}</a></td>
+          <td class="output-cell"><a [routerLink]="['/tx/' | relativeUrl, utxo.txid]" [fragment]="'vout=' + utxo.vout">{{ utxo.txid | slice:0:4 }}…{{ utxo.txid | slice:-4 }};{{ utxo.vout }}</a></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

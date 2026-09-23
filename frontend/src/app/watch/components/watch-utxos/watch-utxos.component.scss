@@ -1,0 +1,10 @@
+.label-cell { min-width: 10rem; }
+.label-cell app-wallet-label-editor { width: min(18rem, 100%); }
+.frozen-utxo { background: color-mix(in srgb, #bcecff 13%, var(--active-bg)); }
+.coin-control-cell { white-space: nowrap; }
+.freeze-button { padding: .25rem .5rem; color: color-mix(in srgb, var(--transparent-fg) 45%, transparent); background: transparent; border: 0; font-size: 1rem; }
+.freeze-button:hover, .freeze-button:focus-visible { color: var(--fg); outline: none; }
+.freeze-button.frozen { color: var(--fg); }
+.value-cell { min-width: 9rem; white-space: nowrap; }
+.address-cell { min-width: 22rem; max-width: 36rem; font-family: monospace; overflow-wrap: anywhere; }
+.output-cell { min-width: 8rem; font-family: monospace; white-space: nowrap; }

@@ -1,0 +1,65 @@
+.settings-table { width: 100%; max-width: 64rem; table-layout: fixed; }
+.settings-table tr { white-space: normal; }
+.settings-table td:first-child { width: 12rem; color: var(--transparent-fg); }
+.settings-table td:last-child { min-width: 0; word-break: break-word; }
+.mono, .descriptor { font-family: monospace; }
+.gap-limit-control { display: flex; align-items: center; gap: .5rem; }
+.gap-limit-control .form-control { width: 6rem; }
+.settings-name { padding: 0; color: var(--fg); background: transparent; border: 0; border-bottom: 1px dashed var(--transparent-fg); text-align: left; }
+.settings-name:hover, .settings-name:focus-visible { border-bottom-color: var(--fg); outline: none; }
+.wallet-rename { display: flex; align-items: center; gap: .5rem; }
+.wallet-rename .form-control { max-width: 20rem; }
+.fingerprint-info { margin-left: .25rem; color: var(--transparent-fg); cursor: help; }
+.descriptor-box {
+  display: flex;
+  align-items: flex-start;
+  gap: .35rem;
+  max-width: 100%;
+  padding: .65rem;
+  border: 1px solid var(--stat-box-bg);
+  border-radius: .25rem;
+  background: var(--active-bg);
+  overflow: hidden;
+}
+.descriptor {
+  display: block;
+  min-width: 0;
+  color: var(--transparent-fg);
+  font-size: .75rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.descriptor-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .75rem 1rem;
+  width: 100%;
+  min-width: 0;
+  margin-top: .5rem;
+  padding: .65rem;
+  border-left: 3px solid var(--yellow);
+  background: var(--active-bg);
+  font-size: .8rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.descriptor-notice-copy { display: grid; flex: 1 1 24rem; min-width: 0; gap: .15rem; }
+.descriptor-notice-copy strong { color: var(--fg); }
+.descriptor-notice-copy span { min-width: 0; }
+.descriptor-acknowledge { flex: 0 0 auto; max-width: 100%; white-space: normal; }
+.settings-group {
+  padding: 1rem 0;
+  border-top: 1px solid var(--stat-box-bg);
+}
+.settings-group h3 { font-size: 1rem; }
+.settings-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: .35rem 0; }
+.danger-zone { margin-top: .5rem; }
+@media (max-width: 767px) {
+  .settings-table, .settings-table tbody, .settings-table tr, .settings-table td { display: block; width: 100%; }
+  .settings-table td:first-child { width: 100%; padding-bottom: .2rem; }
+  .settings-table td:last-child { padding-top: .2rem; }
+  .descriptor-notice { align-items: stretch; }
+  .descriptor-acknowledge { width: 100%; }
+}

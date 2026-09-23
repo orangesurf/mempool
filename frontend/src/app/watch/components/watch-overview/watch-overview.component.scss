@@ -1,0 +1,57 @@
+.overview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+.overview-primary { margin-top: 0; }
+.overview-widget { display: flex; min-width: 0; flex-direction: column; }
+.widget-heading { display: flex; min-height: 2.5rem; align-items: center; justify-content: space-between; }
+.widget-heading h2 { margin: 0; font-size: 1.2rem; }
+.widget-box { flex: 1; min-width: 0; }
+.stat-label { color: var(--transparent-fg); font-size: .78rem; letter-spacing: .03em; text-transform: uppercase; }
+.balance-history-widget { padding-bottom: 0; }
+.balance-values { display: grid; gap: .7rem; max-width: 36rem; margin-bottom: 1rem; }
+.balance-value-row { display: grid; grid-template-columns: 8rem minmax(0, 1fr); align-items: center; gap: 1rem; }
+.balance-amount { display: grid; grid-template-columns: .8rem minmax(12rem, auto) minmax(8rem, 1fr); align-items: center; column-gap: .35rem; font-size: 1.65rem; font-weight: 600; line-height: 1.15; }
+.amount-sign { width: .8rem; text-align: left; }
+.bitcoin-value, .fiat { display: flex; align-items: center; text-align: left; }
+.fiat { display: grid; grid-template-columns: .65rem auto; align-items: center; color: var(--transparent-fg); font-size: .8em; font-weight: 400; }
+.fiat-sign { width: .65rem; }
+.balance-amount.zero-balance, .balance-amount.zero-balance .fiat { color: var(--transparent-fg); }
+.wallet-state-loading { display: flex; min-height: 22rem; align-items: center; justify-content: center; }
+.wallet-loading-track {
+  width: min(16rem, 70%);
+  height: .3rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--stat-box-bg);
+}
+.wallet-loading-bar {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  animation: wallet-loading-slide 1.1s ease-in-out infinite;
+}
+@keyframes wallet-loading-slide {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(300%); }
+}
+.balance-history { min-height: 18rem; padding-top: .75rem; border-top: 1px solid var(--stat-box-bg); }
+.receive-section { display: flex; min-height: 14rem; align-items: center; justify-content: space-between; gap: 2rem; }
+.receive-copy { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: .8rem; }
+.address-line { display: flex; align-items: center; gap: .35rem; }
+.next-address, .receive-path { font-family: monospace; }
+.next-address { word-break: break-all; }
+.receive-path { color: var(--transparent-fg); font-size: .78rem; }
+.receive-qr-column { display: grid; flex: 0 0 auto; justify-items: center; gap: .45rem; }
+.receive-qr { padding: .5rem; border-radius: .35rem; background: var(--fg); }
+.receive-label-row { width: min(23rem, 100%); }
+.recent-transactions { padding: 0; overflow: hidden; }
+@media (max-width: 991px) { .overview-grid { grid-template-columns: 1fr; } }
+@media (max-width: 767px) {
+  .receive-section { align-items: flex-start; flex-direction: column; }
+  .receive-qr-column { align-self: center; }
+  .balance-value-row { grid-template-columns: 1fr; gap: .15rem; }
+  .balance-amount { grid-template-columns: .8rem minmax(10rem, auto) minmax(7rem, 1fr); font-size: 1.3rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wallet-loading-bar { width: 100%; opacity: .65; animation: none; }
+}
