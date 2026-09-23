@@ -2,6 +2,43 @@
  * Load `$localize` onto the global scope - used if i18n tags appear in Angular templates.
  */
 import '@angular/localize/init';
+import { Buffer } from 'buffer';
+
+// `@ngraveio/bc-ur` registers its CBOR readers/writers when its lazy chunk is evaluated.
+// cbor-sync only registers the default binary writer when a global Buffer already exists,
+// so install the browser shim before /watch can import that chunk.
+const browserGlobal = globalThis as typeof globalThis & { Buffer?: typeof Buffer };
+browserGlobal.Buffer ??= Buffer;
+
+/***************************************************************************************************
+ * `process` shim.
+ *
+ * The /watch wallet's PSBT animated-QR codecs (@ngraveio/bc-ur, bbqr) transitively pull in a
+ * browserified Node `util`, which reads the Node `process` global at load time. In a browser
+ * `process` is undefined, so the lazy /watch chunk would throw "process is not defined" during
+ * module init and fail to boot (surfacing confusingly as "Cannot access 'Dh' before
+ * initialization" — Dh being WatchModule). Provide a minimal browser shim. `browser: true`
+ * tells browser-aware libraries they are NOT running under Node.
+ */
+if (typeof (globalThis as { process?: unknown }).process === 'undefined') {
+  (globalThis as { process?: unknown }).process = {
+    browser: true,
+    env: {},
+    argv: [],
+    version: '',
+    versions: {},
+    platform: 'browser',
+    pid: 0,
+    nextTick: (cb: (...args: unknown[]) => void, ...args: unknown[]): void => {
+      Promise.resolve().then(() => cb(...args));
+    },
+    emitWarning: (): void => { /* no-op */ },
+    noDeprecation: false,
+    throwDeprecation: false,
+    stderr: { isTTY: false, columns: 80, getColorDepth: (): number => 1 },
+    stdout: { isTTY: false, columns: 80, getColorDepth: (): number => 1 },
+  };
+}
 /**
  * This file includes polyfills needed by Angular and is loaded before the app.
  * You can add your own extra polyfills to this file.

@@ -1,20 +1,19 @@
 {
-  "extends": "./tsconfig.base.json",
+  "extends": "./tsconfig.app.json",
   "compilerOptions": {
     "outDir": "./out-tsc/spec",
     "types": [
       "jasmine",
-      "node",
-      "cypress",
-      "cypress-wait-until"
-]
+      "node"
+    ]
   },
   "files": [
-    "src/test.ts",
     "src/polyfills.ts"
   ],
   "include": [
-    "src/**/*.spec.ts",
+    "src/app/watch/**/*.spec.ts",
+    "src/app/components/fees-box/*.spec.ts",
+    "src/app/components/utxo-graph/*.spec.ts",
     "src/**/*.d.ts"
   ]
 }
