@@ -26,6 +26,15 @@ import {
   validateDescriptorChecksum,
 } from './watch-key.utils';
 import { ScriptType, WatchNetwork } from './watch.types';
+import {
+  buildWatchOnlyPsbt,
+  calculateWatchOnlyMaxAmount,
+  estimateWatchOnlyTransaction,
+  finalizeExternalPsbt,
+  PsbtBuildRequest,
+  PsbtMaxAmountRequest,
+  PsbtEstimateRequest,
+} from './psbt.utils';
 
 type Btcutil = Awaited<ReturnType<typeof init>>;
 
@@ -106,7 +115,18 @@ export interface DeriveRequest {
   count: number;
 }
 
-type Request = PrepareRequest | DeriveRequest;
+export interface PsbtBuildWorkerRequest { id: number; cmd: 'psbt-build'; request: PsbtBuildRequest; }
+export interface PsbtMaxAmountWorkerRequest { id: number; cmd: 'psbt-max-amount'; request: PsbtMaxAmountRequest; }
+export interface PsbtEstimateWorkerRequest { id: number; cmd: 'psbt-estimate'; request: PsbtEstimateRequest; }
+export interface PsbtFinalizeWorkerRequest { id: number; cmd: 'psbt-finalize'; base64: string; }
+
+type Request =
+  | PrepareRequest
+  | DeriveRequest
+  | PsbtBuildWorkerRequest
+  | PsbtMaxAmountWorkerRequest
+  | PsbtEstimateWorkerRequest
+  | PsbtFinalizeWorkerRequest;
 
 const bytesToHex = (b: Uint8Array): string =>
   Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
@@ -217,7 +237,18 @@ addEventListener('message', async ({ data }: MessageEvent<Request>) => {
       case 'derive':
         result = await handleDerive(data);
         break;
-
+      case 'psbt-build':
+        result = buildWatchOnlyPsbt(await getBtcutil(), data.request);
+        break;
+      case 'psbt-max-amount':
+        result = calculateWatchOnlyMaxAmount(await getBtcutil(), data.request);
+        break;
+      case 'psbt-estimate':
+        result = estimateWatchOnlyTransaction(await getBtcutil(), data.request);
+        break;
+      case 'psbt-finalize':
+        result = finalizeExternalPsbt(await getBtcutil(), data.base64);
+        break;
     }
     postMessage({ id: data.id, ok: true, result });
   } catch (e) {

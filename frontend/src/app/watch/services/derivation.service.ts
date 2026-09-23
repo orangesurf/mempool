@@ -1,6 +1,15 @@
 import { Injectable, Inject, PLATFORM_ID, OnDestroy } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { ScriptType, WatchNetwork, Chain, DerivedAddress } from '../watch.types';
+import {
+  PsbtBuildRequest,
+  PsbtBuildResult,
+  PsbtFinalizedResult,
+  PsbtEstimateRequest,
+  PsbtEstimateResult,
+  PsbtMaxAmountRequest,
+  PsbtMaxAmountResult,
+} from '../psbt.utils';
 
 /**
  * Main-thread facade over the derivation worker.
@@ -72,6 +81,26 @@ export class DerivationService implements OnDestroy {
     return res.addresses.map(({ address, scriptPubKey }, i) => ({
       address, scriptPubKey, chain, index: from + i,
     }));
+  }
+
+  /** Construct a signing-ready PSBT using public descriptor data only. */
+  buildPsbt(request: PsbtBuildRequest): Promise<PsbtBuildResult> {
+    return this.send({ cmd: 'psbt-build', request });
+  }
+
+  /** Calculate the fee-adjusted output amount for a sweep without creating a PSBT. */
+  maxSendAmount(request: PsbtMaxAmountRequest): Promise<PsbtMaxAmountResult> {
+    return this.send({ cmd: 'psbt-max-amount', request });
+  }
+
+  /** Estimate the current send without constructing a PSBT or consuming a change index. */
+  estimateTransaction(request: PsbtEstimateRequest): Promise<PsbtEstimateResult> {
+    return this.send({ cmd: 'psbt-estimate', request });
+  }
+
+  /** Finalize signatures produced by an external signer and extract the raw transaction. */
+  finalizePsbt(base64: string): Promise<PsbtFinalizedResult> {
+    return this.send({ cmd: 'psbt-finalize', base64 });
   }
 
   ngOnDestroy(): void {
