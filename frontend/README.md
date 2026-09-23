@@ -64,6 +64,31 @@ This will open the Cypress test runner, where you can select any of the test fil
 
 If all tests are green, submit your PR, and it will be reviewed by someone on the team as soon as possible.
 
+## Wallet regression tests
+
+Run `npm test` for the watch-only wallet, fee-box, and UTXO-graph regression suite.
+The Karma target uses headless Chrome and serves the checked-in dependency's WASM
+locally; it does not query a backend. Set `CHROME_BIN` if Chrome is installed at a
+nonstandard path. The two legacy Lightning component stubs are outside this target.
+
+For browser coverage, start the frontend with its API proxy, then run:
+
+```bash
+npm run cypress:run -- --browser chrome --spec cypress/e2e/watch.spec.ts,cypress/e2e/address-graph-regression.spec.ts
+```
+
+Cypress uses `baseUrl` from `cypress.config.ts`; override it with
+`--config baseUrl=http://127.0.0.1:4200` when needed. These browser tests use public
+BIP-84 test vectors and fixture wallet history. Explorer integration checks still
+query the live API and need network access.
+
+Wallet tab contracts live in `watch/components/watch-section.types.ts` and contain
+only each tab's state and callbacks. Keep them independent of `WatchComponent` to
+avoid runtime import cycles. `WalletSendController` owns the page's send draft,
+estimation, and QR/camera lifetime; the shell resets it when changing wallets and
+destroys it when leaving the route. Label interchange parsing lives in
+`wallet-label-file.utils.ts`, independently of browser storage.
+
 ## Manual Setup
 
 Set up the [Mempool backend](../backend/) first, if you haven't already.
