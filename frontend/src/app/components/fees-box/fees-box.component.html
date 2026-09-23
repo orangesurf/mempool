@@ -1,4 +1,5 @@
-<div class="fee-estimation-wrapper" *ngIf="(isLoading$ | async) === false && (recommendedFees$ | async) as recommendedFees; else loadingFees">
+<div class="fee-estimation-wrapper" [class.has-marker]="markerFeeRate !== null" *ngIf="(isLoading$ | async) === false && (recommendedFees$ | async) as recommendedFees; else loadingFees">
+  <span *ngIf="markerFeeRate !== null" class="fee-rate-marker" [style.left.%]="markerPosition(recommendedFees)" aria-hidden="true"></span>
   <div class="d-flex">
     <div class="fee-progress-bar" [style.background]="noPriority">
       <span class="fee-label" i18n="fees-box.no-priority" i18n-ngbTooltip="Transaction feerate tooltip (economy)" ngbTooltip="Either 2x the minimum, or the Low Priority rate (whichever is lower)" placement="top">No Priority</span>
@@ -12,25 +13,33 @@
   </div>
 
   <div class="fee-estimation-container">
-    <div class="item">
+    <div class="item" [class.selectable]="selectable" [attr.role]="selectable ? 'button' : null" [attr.tabindex]="selectable ? 0 : null" (click)="selectFee(recommendedFees.economyFee)" (keyup.enter)="selectFee(recommendedFees.economyFee)">
       <div class="card-text">
-        <div class="fee-text"><app-fee-rate [fee]="recommendedFees.economyFee" [dp]="1"></app-fee-rate></div> <span class="fiat"><app-fiat i18n-ngbTooltip="Transaction fee tooltip" ngbTooltip="Based on average native segwit transaction of 140 vBytes" placement="bottom" [value]="recommendedFees.economyFee * 140" ></app-fiat></span>
+        <div class="fee-text"><app-fee-rate [fee]="recommendedFees.economyFee" [dp]="1"></app-fee-rate></div>
+        <div class="fee-cost" *ngIf="transactionVsize !== null"><span>{{ absoluteFee(recommendedFees.economyFee) | number:'1.0-0' }} sats</span><span class="fiat" *ngIf="showFiat"><app-fiat [value]="absoluteFee(recommendedFees.economyFee)"></app-fiat></span></div>
+        <span class="fiat" *ngIf="transactionVsize === null && showFiat"><app-fiat i18n-ngbTooltip="Transaction fee tooltip" ngbTooltip="Based on average native segwit transaction of 140 vBytes" placement="bottom" [value]="recommendedFees.economyFee * 140" ></app-fiat></span>
       </div>
     </div>
     <div class="band-separator"></div>
-    <div class="item">
+    <div class="item" [class.selectable]="selectable" [attr.role]="selectable ? 'button' : null" [attr.tabindex]="selectable ? 0 : null" (click)="selectFee(recommendedFees.hourFee)" (keyup.enter)="selectFee(recommendedFees.hourFee)">
       <div class="card-text">
-        <div class="fee-text"><app-fee-rate [fee]="recommendedFees.hourFee" [dp]="1"></app-fee-rate></div> <span class="fiat"><app-fiat i18n-ngbTooltip="Transaction fee tooltip" ngbTooltip="Based on average native segwit transaction of 140 vBytes" placement="bottom" [value]="recommendedFees.hourFee * 140" ></app-fiat></span>
+        <div class="fee-text"><app-fee-rate [fee]="recommendedFees.hourFee" [dp]="1"></app-fee-rate></div>
+        <div class="fee-cost" *ngIf="transactionVsize !== null"><span>{{ absoluteFee(recommendedFees.hourFee) | number:'1.0-0' }} sats</span><span class="fiat" *ngIf="showFiat"><app-fiat [value]="absoluteFee(recommendedFees.hourFee)"></app-fiat></span></div>
+        <span class="fiat" *ngIf="transactionVsize === null && showFiat"><app-fiat i18n-ngbTooltip="Transaction fee tooltip" ngbTooltip="Based on average native segwit transaction of 140 vBytes" placement="bottom" [value]="recommendedFees.hourFee * 140" ></app-fiat></span>
       </div>
     </div>
-    <div class="item">
+    <div class="item" [class.selectable]="selectable" [attr.role]="selectable ? 'button' : null" [attr.tabindex]="selectable ? 0 : null" (click)="selectFee(recommendedFees.halfHourFee)" (keyup.enter)="selectFee(recommendedFees.halfHourFee)">
       <div class="card-text">
-        <div class="fee-text"><app-fee-rate [fee]="recommendedFees.halfHourFee" [dp]="1"></app-fee-rate></div> <span class="fiat"><app-fiat i18n-ngbTooltip="Transaction fee tooltip" ngbTooltip="Based on average native segwit transaction of 140 vBytes" placement="bottom" [value]="recommendedFees.halfHourFee * 140" ></app-fiat></span>
+        <div class="fee-text"><app-fee-rate [fee]="recommendedFees.halfHourFee" [dp]="1"></app-fee-rate></div>
+        <div class="fee-cost" *ngIf="transactionVsize !== null"><span>{{ absoluteFee(recommendedFees.halfHourFee) | number:'1.0-0' }} sats</span><span class="fiat" *ngIf="showFiat"><app-fiat [value]="absoluteFee(recommendedFees.halfHourFee)"></app-fiat></span></div>
+        <span class="fiat" *ngIf="transactionVsize === null && showFiat"><app-fiat i18n-ngbTooltip="Transaction fee tooltip" ngbTooltip="Based on average native segwit transaction of 140 vBytes" placement="bottom" [value]="recommendedFees.halfHourFee * 140" ></app-fiat></span>
       </div>
     </div>
-    <div class="item">
+    <div class="item" [class.selectable]="selectable" [attr.role]="selectable ? 'button' : null" [attr.tabindex]="selectable ? 0 : null" (click)="selectFee(recommendedFees.fastestFee)" (keyup.enter)="selectFee(recommendedFees.fastestFee)">
       <div class="card-text">
-        <div class="fee-text"><app-fee-rate [fee]="recommendedFees.fastestFee" [dp]="1"></app-fee-rate></div> <span class="fiat"><app-fiat i18n-ngbTooltip="Transaction fee tooltip" ngbTooltip="Based on average native segwit transaction of 140 vBytes" placement="bottom" [value]="recommendedFees.fastestFee * 140" ></app-fiat></span>
+        <div class="fee-text"><app-fee-rate [fee]="recommendedFees.fastestFee" [dp]="1"></app-fee-rate></div>
+        <div class="fee-cost" *ngIf="transactionVsize !== null"><span>{{ absoluteFee(recommendedFees.fastestFee) | number:'1.0-0' }} sats</span><span class="fiat" *ngIf="showFiat"><app-fiat [value]="absoluteFee(recommendedFees.fastestFee)"></app-fiat></span></div>
+        <span class="fiat" *ngIf="transactionVsize === null && showFiat"><app-fiat i18n-ngbTooltip="Transaction fee tooltip" ngbTooltip="Based on average native segwit transaction of 140 vBytes" placement="bottom" [value]="recommendedFees.fastestFee * 140" ></app-fiat></span>
       </div>
     </div>
   </div>

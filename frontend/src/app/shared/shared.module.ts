@@ -9,7 +9,7 @@ import { faFilter, faAngleDown, faAngleUp, faAngleRight, faAngleLeft, faBolt, fa
   faCircleCheck, faUserCircle, faCheck, faRocket, faScaleBalanced, faHourglassStart, faHourglassHalf, faHourglassEnd, faWandMagicSparkles, faTimeline,
   faCircleXmark, faCalendarCheck, faMoneyBillTrendUp, faRobot, faShareNodes, faCreditCard, faMicroscope, faExclamationTriangle, faLockOpen, faPaperclip, faAddressCard,
   faMedal, faBug, faFilePdf, faPiggyBank, faLayerGroup, faHeart, faCashRegister, faCodeFork, faCode, 
-  faCalendar, faPause, faPlay, faExpand, faCompress} from '@fortawesome/free-solid-svg-icons';
+  faCalendar, faPause, faPlay, faExpand, faCompress, faCog, faPen, faSnowflake, faPaste, faNoteSticky } from '@fortawesome/free-solid-svg-icons';
 import { InfiniteScrollDirective } from '@app/shared/directives/infinite-scroll.directive';
 import { MenuComponent } from '@components/menu/menu.component';
 import { PreviewTitleComponent } from '@components/master-page-preview/preview-title.component';
@@ -131,12 +131,16 @@ import { SimpleProofCuboWidgetComponent } from '@components/simpleproof-widget/s
 import { FaucetComponent } from '@components/faucet/faucet.component';
 import { TwitterLogin } from '@components/twitter-login/twitter-login.component';
 import { BitcoinInvoiceComponent } from '@components/bitcoin-invoice/bitcoin-invoice.component';
+import { AddressQrCopyComponent } from '@app/shared/components/address-qr-copy/address-qr-copy.component';
+import { WalletLabelEditorComponent } from '@app/shared/components/wallet-label-editor/wallet-label-editor.component';
 
 import { OnlyVsizeDirective, OnlyWeightDirective } from '@app/shared/components/weight-directives/weight-directives';
 import { GithubLogin } from '@components/github-login.component/github-login.component';
 
 @NgModule({
   declarations: [
+    AddressQrCopyComponent,
+    WalletLabelEditorComponent,
     ClipboardComponent,
     TimeComponent,
     QrcodeComponent,
@@ -288,6 +292,8 @@ import { GithubLogin } from '@components/github-login.component/github-login.com
     FeeRoundingPipe,
   ],
   exports: [
+    AddressQrCopyComponent,
+    WalletLabelEditorComponent,
     MenuComponent,
     RouterModule,
     ReactiveFormsModule,
@@ -454,6 +460,8 @@ export class SharedModule {
     library.addIcons(faList);
     library.addIcons(faFastForward);
     library.addIcons(faWallet);
+    library.addIcons(faCog);
+    library.addIcons(faSnowflake);
     library.addIcons(faUserClock);
     library.addIcons(faWrench);
     library.addIcons(faUserFriends);
@@ -500,5 +508,8 @@ export class SharedModule {
     library.addIcons(faPlay);
     library.addIcons(faExpand);
     library.addIcons(faCompress);
+    library.addIcons(faPen);
+    library.addIcons(faPaste);
+    library.addIcons(faNoteSticky);
   }
 }

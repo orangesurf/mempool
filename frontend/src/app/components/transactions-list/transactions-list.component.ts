@@ -18,6 +18,8 @@ import { ADDRESS_SIMILARITY_THRESHOLD, AddressMatch, AddressSimilarity, AddressT
 import { processInputSignatures, Sighash, SigInfo, SighashLabels, parseTaproot } from '@app/shared/transaction.utils';
 import { ActivatedRoute } from '@angular/router';
 import { SighashFlag } from '@app/shared/transaction.utils';
+import { WalletService } from '@app/watch/services/wallet.service';
+import { DerivedAddress } from '@app/watch/watch.types';
 
 @Component({
   selector: 'app-transactions-list',
@@ -46,8 +48,61 @@ export class TransactionsListComponent implements OnInit, OnChanges, OnDestroy {
   @Input() blockTime: number = 0; // Used for price calculation if all the transactions are in the same block
   @Input() txPreview = false;
   @Input() forceSignaturesMode: SignaturesMode = null;
-
+  /** Opt-in: show an inline editable label next to each transaction id.
+   *  Off by default, so no other page that reuses this list is affected. */
+  @Input() editableLabels = false;
+  /** txid → current label, for the editable-labels feature. Pass a stable reference. */
+  @Input() txLabels: Record<string, string> = {};
+  /** Opt-in wallet-dashboard navigation when its wallet markers are clicked. */
+  @Input() walletAddressNavigation = false;
   @Output() loadMore = new EventEmitter();
+  /** Emits the new label for a txid when the user finishes editing it inline. */
+  @Output() labelChanged = new EventEmitter<{ txid: string; label: string }>();
+  @Output() walletAddressSelected = new EventEmitter<string>();
+
+  /**
+   * Addresses belonging to the user's watch-only wallet, if one is loaded.
+   *
+   * Cached as a stable array reference: the template calls highlightAddresses per input and
+   * per output, so this must not allocate on every change-detection pass. When no wallet is
+   * loaded it stays empty, and every highlight binding short-circuits on `.length &&` —
+   * which is what keeps this feature free for the overwhelming majority of page views.
+   */
+  private walletHighlightAddresses: string[] = [];
+  private walletSubscription: Subscription;
+
+  /**
+   * An explicit [addresses] input always wins (that is the address page highlighting its own
+   * address). Otherwise fall back to the wallet, which lights up "this output is mine" on
+   * transaction and block pages without those components knowing the wallet exists.
+   */
+  get highlightAddresses(): string[] {
+    return this.addresses?.length ? this.addresses : this.walletHighlightAddresses;
+  }
+
+  /**
+   * Marks an input/output as belonging to the user's watch-only wallet. Rendered next to the
+   * value rather than the address, where it would wrap onto its own line.
+   *
+   * Cheap by design: `hasWallet` is false for almost every page view, so this short-circuits
+   * before touching the Map. No derivation, no WASM.
+   */
+  walletEntry(address: string | undefined): DerivedAddress | undefined {
+    if (!address || !this.walletService.hasWallet) {
+      return undefined;
+    }
+    return this.walletService.lookup(address);
+  }
+
+  /** Prefer the user's label; fall back to the full derivation path. */
+  walletTooltip(address: string | undefined): string {
+    const entry = this.walletEntry(address);
+    if (!entry) {
+      return '';
+    }
+    const label = address ? this.walletService.addressLabel(address) : '';
+    return label || (address ? this.walletService.derivationPath(address) : '') || '';
+  }
 
   latestBlock$: Observable<BlockExtended>;
   outspendsSubscription: Subscription;
@@ -92,11 +147,18 @@ export class TransactionsListComponent implements OnInit, OnChanges, OnDestroy {
     private priceService: PriceService,
     private storageService: StorageService,
     private route: ActivatedRoute,
+    private walletService: WalletService,
   ) {
     this.signaturesMode = this.forceSignaturesMode || this.stateService.signaturesMode$.value;
   }
 
   ngOnInit(): void {
+    // Highlight outputs belonging to ANY of the user's wallets, not just the active one.
+    this.walletSubscription = this.walletService.getWallets$().subscribe((wallets) => {
+      this.walletHighlightAddresses = wallets.flatMap((w) => w.addresses.map((a) => a.address));
+      this.ref.markForCheck();
+    });
+
     this.latestBlock$ = this.stateService.blocks$.pipe(map((blocks) => blocks[0]));
     this.networkSubscription = this.stateService.networkChanged$.subscribe((network) => {
       this.network = network;
@@ -716,6 +778,7 @@ export class TransactionsListComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.walletSubscription?.unsubscribe();
     this.outspendsSubscription.unsubscribe();
     this.currencyChangeSubscription?.unsubscribe();
     this.networkSubscription.unsubscribe();

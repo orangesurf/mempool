@@ -236,6 +236,7 @@ td.amount.large {
 .tx-page-container {
 	display: flex;
 	flex-direction: row;
+	flex-wrap: wrap;
 	align-items: baseline;
 	white-space: nowrap;
 	padding: 10px;
@@ -323,6 +324,15 @@ h2 {
 	width: 0;
 	flex-grow: 1;
 	margin-inline-end: 2em;
+}
+
+.tx-inline-label {
+	width: min(18rem, 36vw);
+	min-width: 10rem;
+	margin-inline-end: 1em;
+}
+@media (max-width: 767px) {
+	.tx-inline-label { order: 3; width: 100%; margin-top: .5rem; margin-inline-end: 0; }
 }
 
 .vin-witness {
@@ -421,3 +431,21 @@ h2 {
   50% { background-color: #8457bb; box-shadow: #ad7de5 0px 0px 18px -2px;}
   100% { background-color: #653b9c; box-shadow: #ad7de57f 0px 0px 12px -2px; }
 }
+// Wallet marker, sitting immediately left of the value in the amount cell.
+.wallet-tag {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.35rem;
+  color: var(--primary);
+  font-size: 0.85em;
+  cursor: help;
+  vertical-align: baseline;
+}
+.wallet-tag-button {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  line-height: inherit;
+}
+.wallet-tag-button:hover, .wallet-tag-button:focus-visible { color: var(--fg); outline: none; }

@@ -1,0 +1,13 @@
+<span class="address-tools" (mouseleave)="closeQr()" (focusout)="closeQr()">
+  <button type="button" class="qr-button" title="Show address QR code"
+          [attr.aria-label]="'Show QR code for ' + address"
+          [attr.aria-expanded]="showQr"
+          (mouseenter)="openQr()" (focus)="openQr()"
+          (click)="toggleQr()">
+    <fa-icon [icon]="['fas', 'qrcode']" [fixedWidth]="true"></fa-icon>
+  </button>
+  <span class="qr-popover" *ngIf="showQr">
+    <app-qrcode [size]="qrSize" [margin]="qrMargin" [data]="address"></app-qrcode>
+  </span>
+  <app-clipboard [text]="address" [size]="clipboardSize"></app-clipboard>
+</span>

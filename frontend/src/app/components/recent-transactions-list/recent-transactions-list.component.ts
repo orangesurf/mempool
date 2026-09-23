@@ -5,6 +5,7 @@ import { StateService } from '@app/services/state.service';
 import { WebsocketService } from '@app/services/websocket.service';
 import { SeoService } from '@app/services/seo.service';
 import { TransactionStripped } from '@interfaces/node-api.interface';
+import { Transaction } from '@interfaces/electrs.interface';
 import { seoDescriptionNetwork } from '@app/shared/common.utils';
 
 @Component({
@@ -16,6 +17,13 @@ import { seoDescriptionNetwork } from '@app/shared/common.utils';
 })
 export class RecentTransactionsList implements OnInit, OnDestroy {
   @Input() widget: boolean = false;
+  @Input() walletTransactions: Transaction[] | null = null;
+  @Input() walletValues: Record<string, number> = {};
+  @Input() acceleratedTxids: Set<string> | null = null;
+
+  get walletHasPendingTransactions(): boolean {
+    return !!this.walletTransactions?.some((transaction) => !transaction.status?.confirmed);
+  }
 
   transactions$: Observable<TransactionStripped[]>;
   bufferedCount$: Observable<number>;
@@ -126,7 +134,7 @@ export class RecentTransactionsList implements OnInit, OnDestroy {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  trackByTxid(index: number, tx: TransactionStripped): string {
+  trackByTxid(index: number, tx: { txid: string }): string {
     return tx.txid;
   }
 

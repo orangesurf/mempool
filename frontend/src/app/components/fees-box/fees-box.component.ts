@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectionStrategy, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, OnDestroy, ChangeDetectorRef, EventEmitter, Input, Output } from '@angular/core';
 import { StateService } from '@app/services/state.service';
 import { Observable, combineLatest, Subscription } from 'rxjs';
 import { Recommendedfees } from '@interfaces/websocket.interface';
@@ -14,6 +14,11 @@ import { ThemeService } from '@app/services/theme.service';
   standalone: false,
 })
 export class FeesBoxComponent implements OnInit, OnDestroy {
+  @Input() showFiat = true;
+  @Input() transactionVsize: number | null = null;
+  @Input() markerFeeRate: number | null = null;
+  @Input() selectable = false;
+  @Output() feeRateSelected = new EventEmitter<number>();
   isLoading$: Observable<boolean>;
   recommendedFees$: Observable<Recommendedfees>;
   themeStateSubscription: Subscription;
@@ -65,6 +70,37 @@ export class FeesBoxComponent implements OnInit, OnDestroy {
     this.noPriority = startColor;
 
     this.cd.markForCheck();
+  }
+
+  markerPosition(fees: Recommendedfees): number {
+    const rate = Number(this.markerFeeRate);
+    if (!Number.isFinite(rate)) return 12.5;
+    // The four figures below the bar are four equal-width cells. Interpolate within each
+    // neighbouring recommendation pair so the marker lands over the figures' actual centres,
+    // rather than treating their fee rates as one continuous 0–100 scale.
+    const points: Array<[number, number]> = [
+      [12.5, fees.economyFee], [37.5, fees.hourFee],
+      [62.5, fees.halfHourFee], [87.5, fees.fastestFee],
+    ];
+    if (rate <= points[0][1]) return points[0][0];
+    for (let index = 1; index < points.length; index++) {
+      const [upperPosition, upperRate] = points[index];
+      const [lowerPosition, lowerRate] = points[index - 1];
+      if (rate <= upperRate) {
+        if (upperRate <= lowerRate) return upperPosition;
+        const fraction = Math.min(1, Math.max(0, (rate - lowerRate) / (upperRate - lowerRate)));
+        return lowerPosition + fraction * (upperPosition - lowerPosition);
+      }
+    }
+    return points[points.length - 1][0];
+  }
+
+  absoluteFee(rate: number): number {
+    return Math.ceil(rate * (this.transactionVsize ?? 140));
+  }
+
+  selectFee(rate: number): void {
+    if (this.selectable) this.feeRateSelected.emit(rate);
   }
 
   ngOnDestroy(): void {

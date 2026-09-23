@@ -1,3 +1,20 @@
+.fee-estimation-wrapper { position: relative; }
+.fee-estimation-wrapper.has-marker { padding-top: 10px; }
+.fee-rate-marker {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-right: 5px solid transparent;
+  border-top: 8px solid #fff;
+  border-left: 5px solid transparent;
+  transition: left .12s ease-out;
+}
+.item.selectable { border-radius: .2rem; cursor: pointer; }
+.item.selectable:hover, .item.selectable:focus-visible { background: color-mix(in srgb, var(--fg) 7%, transparent); outline: 1px solid var(--transparent-fg); }
+
 .card-title {
   color: var(--title-fg);
   font-size: 10px;
@@ -19,14 +36,15 @@
 }
 
 .fee-estimation-container {
-  display: flex;
-  justify-content: space-between;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  @media (767px < width < 992px), (width < 576px) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  > .band-separator { display: none; }
   .item {
-    width: 100px;
+    min-width: 0;
     margin: 0;
-    width: -webkit-fill-available;
-    margin: 0 auto 0px;
     &:first-child {
       @media (767px < width < 992px), (width < 576px) {
         display: none
@@ -49,6 +67,18 @@
     .fiat {
       display: block;
       font-size: 13px !important;
+    }
+    .fee-cost {
+      display: grid;
+      min-height: 2.1rem;
+      margin-top: .2rem;
+      color: var(--transparent-fg);
+      font-size: .72rem;
+      line-height: 1.05rem;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      > span { top: 0; justify-content: center; }
+      .fiat { line-height: 1rem; }
     }
   }
 }
@@ -125,5 +155,17 @@
   }
   &.prority {
     width: 33%;
+  }
+}
+
+// A selectable fee box needs all four recommendation cells to keep the marker's four
+// independent scales aligned with their figures. The ordinary homepage box retains its
+// established compact three-cell treatment at these widths.
+@media (767px < width < 992px), (width < 576px) {
+  .fee-estimation-wrapper.has-marker {
+    .fee-estimation-container { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .fee-estimation-container .item:first-child { display: block; }
+    .fee-progress-bar:first-child { display: flex; }
+    .fee-progress-bar.priority { width: 75%; }
   }
 }

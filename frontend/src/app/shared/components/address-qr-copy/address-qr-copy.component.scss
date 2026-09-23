@@ -1,0 +1,26 @@
+:host { display: inline-flex; flex: 0 0 auto; }
+.address-tools { position: relative; display: inline-flex; align-items: center; }
+.qr-button {
+  padding: .1rem .2rem;
+  color: var(--transparent-fg);
+  background: transparent;
+  border: 0;
+  line-height: 1;
+}
+.qr-button:hover, .qr-button:focus-visible { color: var(--fg); outline: none; }
+.qr-popover {
+  position: absolute;
+  top: calc(100% + .35rem);
+  left: 50%;
+  z-index: 99;
+  display: block;
+  padding: .6rem;
+  border: 8px solid var(--secondary);
+  border-radius: .35rem;
+  background: #fff;
+  transform: translateX(-50%);
+  box-shadow: 0 .35rem 1rem rgba(0, 0, 0, .35);
+}
+@media (max-width: 767px) {
+  .qr-popover { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+}

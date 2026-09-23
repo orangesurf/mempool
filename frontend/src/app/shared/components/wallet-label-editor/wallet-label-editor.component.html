@@ -1,0 +1,8 @@
+<label class="wallet-label-editor">
+  <span class="label-prefix" *ngIf="prefix">{{ prefix }}</span>
+  <input #labelInput class="form-control form-control-sm" type="text" [value]="draft"
+         [attr.aria-label]="ariaLabel" [placeholder]="placeholder" [maxLength]="maxLength"
+         autocomplete="off" spellcheck="false"
+         (focus)="onFocus()" (input)="onInput(labelInput.value)" (blur)="onBlur()"
+         (keyup.enter)="commit(labelInput)" (keydown.escape)="cancel(labelInput); $event.preventDefault()">
+</label>

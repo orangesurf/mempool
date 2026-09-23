@@ -29,7 +29,33 @@
     </div>
   </div>
 
-  <table class="table latest-transactions">
+  <table class="table latest-transactions wallet-transactions" *ngIf="walletTransactions !== null">
+    <thead>
+      <th class="table-cell-date">Date</th>
+      <th class="table-cell-satoshis" i18n="dashboard.latest-transactions.amount">Amount</th>
+      <th class="table-cell-txid" i18n="dashboard.latest-transactions.txid">TXID</th>
+      <th class="table-cell-action" *ngIf="walletHasPendingTransactions"></th>
+    </thead>
+    <tbody>
+      <tr *ngFor="let transaction of walletTransactions; trackBy: trackByTxid">
+        <td class="table-cell-date">{{ transaction.status?.confirmed ? ((transaction.status?.block_time || 0) * 1000 | date:'mediumDate') : 'In mempool' }}</td>
+        <td class="table-cell-satoshis" [class.text-success]="walletValues[transaction.txid] > 0" [class.text-danger]="walletValues[transaction.txid] < 0">
+          <app-amount [satoshis]="walletValues[transaction.txid] || 0" [addPlus]="true" digitsInfo="1.2-4" [noFiat]="true"></app-amount>
+        </td>
+        <td class="table-cell-txid"><a [routerLink]="['/tx' | relativeUrl, transaction.txid]"><app-truncate [text]="transaction.txid" [lastChars]="5"></app-truncate></a></td>
+        <td class="table-cell-action" *ngIf="walletHasPendingTransactions">
+          <button *ngIf="!transaction.status?.confirmed && acceleratedTxids" type="button"
+                  class="btn btn-sm btn-purple wallet-accelerate" [class.blink]="acceleratedTxids.has(transaction.txid)"
+                  [routerLink]="['/tx/' | relativeUrl, transaction.txid]" fragment="accelerate">
+            <img src="/resources/mempool-accelerator-sparkles-light.svg" height="15" class="me-2">
+            {{ acceleratedTxids.has(transaction.txid) ? 'Accelerated' : 'Accelerate' }}
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table class="table latest-transactions" *ngIf="walletTransactions === null">
     <thead>
       <th class="table-cell-txid" i18n="dashboard.latest-transactions.txid">TXID</th>
       <th class="table-cell-fiat" *ngIf="(network$ | async) === ''">{{ currency }}</th>

@@ -112,3 +112,16 @@
     }
   }
 }
+
+.wallet-transactions {
+  margin-bottom: 0;
+  .table-cell-date { color: var(--transparent-fg); white-space: nowrap; }
+  .table-cell-action { width: 8.5rem; text-align: right; }
+  .wallet-accelerate { white-space: nowrap; }
+  .wallet-accelerate.blink { animation: walletAcceleratePulse 1s infinite; }
+  .table-cell-date { width: 30%; }
+  .table-cell-satoshis { width: 35%; }
+  .table-cell-txid { width: 35%; }
+}
+
+@keyframes walletAcceleratePulse { 50% { opacity: .65; } }
