@@ -475,6 +475,12 @@ export class WebsocketService {
       this.stateService.multiAddressTransactions$.next(response['multi-address-transactions']);
     }
 
+    if (response['track-addresses-error']) {
+      // The server has dropped the subscription; do not replay it on reconnect.
+      this.isTrackingAddresses = false;
+      this.stateService.trackAddressesError$.next(response['track-addresses-error']);
+    }
+
     if (response['block-transactions']) {
       response['block-transactions'].forEach((addressTransaction: Transaction) => {
         this.stateService.blockTransactions$.next(addressTransaction);

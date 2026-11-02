@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/worker",
+    "lib": [
+      "ES2022",
+      "webworker"
+    ],
+    "types": [],
+    "paths": {
+      "@app/*" : ["src/app/*"],
+      "@components/*" : ["src/app/components/*"],
+      "@environments/*" : ["src/environments/*"],
+      "@interfaces/*" : ["src/app/interfaces/*"]
+    }
+  },
+  "include": [
+    "src/**/*.worker.ts"
+  ]
+}

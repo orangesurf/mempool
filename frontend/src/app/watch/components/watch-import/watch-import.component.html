@@ -1,0 +1,60 @@
+<div class="import">
+  <div class="import-cancel" *ngIf="state.adding">
+    <button type="button" class="btn btn-sm btn-outline-secondary" (click)="session.cancelAdding()" [disabled]="state.scanning" i18n="watch.cancel">Cancel</button>
+  </div>
+
+  <form (ngSubmit)="import()">
+    <div class="mb-3">
+      <label for="watch-label" i18n="watch.wallet-name">Wallet name</label>
+      <input id="watch-label" name="label" type="text" class="form-control" [attr.maxlength]="60" autocomplete="off"
+             [(ngModel)]="label" [disabled]="state.scanning">
+    </div>
+
+    <div class="mb-3">
+      <label for="watch-key" i18n="watch.wallet-source">Wallet descriptor, address list or extended public key</label>
+      <textarea id="watch-key" name="key" class="form-control" rows="4" spellcheck="false" autocomplete="off"
+                [(ngModel)]="keyInput" [disabled]="state.scanning"
+                placeholder="wpkh([…]xpub…/<0;1>/*), one address per line, or zpub…" i18n-placeholder="watch.source-placeholder"></textarea>
+      <small class="form-text detected-hint" *ngIf="detectedInput">
+        <ng-container i18n="watch.detected">Detected:</ng-container>&nbsp;<strong>{{ detectedInput }}</strong>
+      </small>
+    </div>
+
+    <div class="mb-3" *ngIf="needsScriptTypeHint">
+      <label for="watch-script" i18n="watch.script-type">Address type</label>
+      <select id="watch-script" name="scriptType" class="form-select" [ngModel]="scriptTypeHint" (ngModelChange)="chooseScriptType($event)" [disabled]="state.scanning">
+        <option *ngFor="let t of scriptTypes" [value]="t.value">{{ t.label }} ({{ t.path }})</option>
+      </select>
+      <small class="form-text text-muted" *ngIf="!scriptTypeChosen" i18n="watch.script-type-help-detect">An xpub does not say which address type it uses. Unless you choose one, the wallet checks which type has history at the first receive address, and uses this one if none has.</small>
+      <small class="form-text text-muted" *ngIf="scriptTypeChosen" i18n="watch.script-type-help">An xpub does not say which address type it uses.</small>
+    </div>
+
+    <button type="submit" class="btn btn-primary" *ngIf="canLoad || state.scanning" [disabled]="state.scanning">
+      <ng-container *ngIf="!state.scanning" i18n="watch.load-button">Load wallet</ng-container>
+      <ng-container *ngIf="state.scanning">
+        <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+        <ng-container [ngSwitch]="state.progress?.phase">
+          <ng-container *ngSwitchCase="'deriving'" i18n="watch.deriving">Deriving addresses…</ng-container>
+          <ng-container *ngSwitchCase="'fetching'" i18n="watch.fetching">Loading history…</ng-container>
+          <ng-container *ngSwitchDefault i18n="watch.starting">Starting…</ng-container>
+        </ng-container>
+      </ng-container>
+    </button>
+
+    <p class="text-muted mt-2 mb-0" *ngIf="state.scanning && state.progress as progress">
+      <app-watch-scan-status [progress]="progress"></app-watch-scan-status>
+    </p>
+  </form>
+
+  <div class="alert alert-danger mt-3 mb-0" *ngIf="state.error">{{ state.error }}</div>
+
+  <div class="alert alert-warning mt-3 mb-0 script-type-choices" *ngIf="state.scriptTypeChoices as choices" role="alert">
+    <p class="mb-2" i18n="watch.script-type-several">This key has history under more than one address type: {{ choiceNames(choices) }}. Choose which one to load.</p>
+    <button *ngFor="let type of choices" type="button" class="btn btn-sm btn-outline-secondary me-2" (click)="importAs(type)" [disabled]="state.scanning"
+            i18n="watch.load-as">Load as {{ scriptTypeName(type) }}</button>
+  </div>
+
+  <p class="privacy-note" i18n="watch.privacy-note">
+    Addresses are derived in your browser and your key is never sent. Balances are requested in batches, so the server can tell the addresses belong to one wallet.
+  </p>
+</div>

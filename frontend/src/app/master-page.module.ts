@@ -1,8 +1,11 @@
-import { NgModule } from '@angular/core';
+import { NgModule, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Routes, RouterModule, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
+import { Routes, Router, RouterModule, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
 import { MasterPageComponent } from '@components/master-page/master-page.component';
 import { SharedModule } from '@app/shared/shared.module';
+import { WalletAccessService } from '@app/services/wallet-access.service';
+import { Observable } from 'rxjs';
+import { take } from 'rxjs/operators';
 
 import { StartComponent } from '@components/start/start.component';
 import { PushTransactionComponent } from '@components/push-transaction/push-transaction.component';
@@ -21,6 +24,22 @@ import { SimpleProofCuboWidgetComponent } from '@components/simpleproof-widget/s
 const browserWindow = window || {};
 // @ts-ignore
 const browserWindowEnv = browserWindow.__env || {};
+
+/**
+ * Whether /wallet is the watch-only wallet: on a network it runs on, read from the URL being
+ * navigated to, and when WalletAccessService allows it (which waits for the account lookup
+ * if an invite is required).
+ */
+function watchWalletRouteEnabled(): Observable<boolean> | boolean {
+  const router = inject(Router);
+  const access = inject(WalletAccessService);
+  const navigation = router.getCurrentNavigation();
+  const url = navigation ? router.serializeUrl(navigation.extractedUrl) : router.url;
+  if (!access.runsOn(access.networkOfUrl(url))) {
+    return false;
+  }
+  return access.walletAvailable$.pipe(take(1));
+}
 
 const routes: Routes = [
   {
@@ -101,6 +120,15 @@ const routes: Routes = [
         component: StartComponent,
         data: { preload: true, networkSpecific: true },
         loadChildren: () => import('@components/block/block.module').then(m => m.BlockModule),
+      },
+      {
+        // canMatch rather than canActivate: with the flag off the route does not exist, so
+        // the wallet chunk is never downloaded and the URL falls through to other routes.
+        // pathMatch 'full' leaves /wallet/:name (enterprise treasury wallets) untouched.
+        path: 'wallet',
+        pathMatch: 'full',
+        canMatch: [watchWalletRouteEnabled],
+        loadChildren: () => import('@app/watch/watch.module').then(m => m.WatchModule),
       },
       {
         path: 'docs',

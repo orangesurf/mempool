@@ -190,7 +190,8 @@
             "namedChunks": true,
             "allowedCommonJsDependencies": [
               "qrcode"
-            ]
+            ],
+            "webWorkerTsConfig": "tsconfig.worker.json"
           },
           "configurations": {
             "production": {
