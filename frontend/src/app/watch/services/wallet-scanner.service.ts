@@ -19,8 +19,6 @@ import {
 import { DerivationService } from '@app/watch/services/derivation.service';
 import { AddressRequestQueue } from '@app/watch/request-queue';
 
-/** Beyond this the scan is reported as truncated rather than shown as complete. */
-const MAX_PAGES = 200;
 const PAGE_SIZE = 50;
 
 /** Smaller request bodies keep each history request quick to answer. */
@@ -74,7 +72,6 @@ export interface WalletRefreshRequest extends WalletScanRequest {
 export interface WalletScanResult {
   wallet: WatchWallet;
   txs: Transaction[];
-  truncated: boolean;
 }
 
 /** The caller keeps what it showed before. */
@@ -194,11 +191,10 @@ function withoutUiState(tx: Transaction): Transaction {
   return copy;
 }
 
-/** One collector per scan, so MAX_PAGES bounds the whole scan. Each chunk is paged on its own. */
+/** One collector per scan. Each chunk is paged on its own. */
 class HistoryCollector {
   readonly txsById = new Map<string, Transaction>();
   pages = 0;
-  truncated = false;
   stopAtHeight: number | null = null;
   /** The chunk being read; stored only once read in full. */
   private reading = new Map<string, Transaction>();
@@ -223,7 +219,7 @@ class HistoryCollector {
   }
 
   async fetch(addresses: string[], beforeRequest: () => void): Promise<void> {
-    for (let start = 0; start < addresses.length && !this.truncated; start += MAX_ADDRESSES_PER_REQUEST) {
+    for (let start = 0; start < addresses.length; start += MAX_ADDRESSES_PER_REQUEST) {
       const chunk = await this.fetchChunk(addresses.slice(start, start + MAX_ADDRESSES_PER_REQUEST), beforeRequest);
       for (const tx of chunk) {
         this.txsById.set(tx.txid, tx);
@@ -253,10 +249,6 @@ class HistoryCollector {
     };
 
     for (;;) {
-      if (this.pages >= MAX_PAGES) {
-        this.truncated = true;
-        return [...found.values()];
-      }
       beforeRequest();
 
       const cursor = afterTxid;
@@ -401,9 +393,6 @@ export class WalletScannerService {
       txsFound: history.found(),
       apiRequests: history.requests + 1,
     }));
-    if (history.truncated) {
-      return this.scan(request);
-    }
     for (const tx of cache.confirmed) {
       if (tx.status.block_height <= sinceHeight && !history.txsById.has(tx.txid)) {
         history.txsById.set(tx.txid, withoutUiState(tx));
@@ -448,7 +437,7 @@ export class WalletScannerService {
     }
     const txs = sortNewestFirst([...history.txsById.values()]);
     onProgress({ phase: 'done', addressesDerived: wallet.addresses.length, txsFound: txs.length, apiRequests: history.requests });
-    return { wallet, txs, truncated: history.truncated };
+    return { wallet, txs };
   }
 
   private async scanAddressList(
@@ -542,12 +531,9 @@ export class WalletScannerService {
         while (lastUsedOn(chain) >= derivedCount[chain] - gapLimit) {
           await fetchFor(await extend(chain, lastUsedOn(chain) + gapLimit + 1 - derivedCount[chain]));
           extended = true;
-          if (history.truncated) {
-            break;
-          }
         }
       }
-      if (!extended || history.truncated) {
+      if (!extended) {
         break;
       }
     }

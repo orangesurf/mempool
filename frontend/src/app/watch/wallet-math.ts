@@ -138,11 +138,9 @@ export interface WalletView {
   lastUsed: Record<Chain, number>;
   used: Set<string>;
   history: AddressTxSummary[];
-  /** The scan hit its page limit, so the history is incomplete. */
-  truncated: boolean;
 }
 
-export function buildWalletView(wallet: WatchWallet, transactions: Transaction[], truncated: boolean): WalletView {
+export function buildWalletView(wallet: WatchWallet, transactions: Transaction[]): WalletView {
   const map = addressMapOf(wallet);
   return {
     wallet,
@@ -152,7 +150,6 @@ export function buildWalletView(wallet: WatchWallet, transactions: Transaction[]
     lastUsed: computeLastUsed(transactions, map),
     used: computeUsed(transactions, map),
     history: balanceHistory(transactions, map),
-    truncated,
   };
 }
 

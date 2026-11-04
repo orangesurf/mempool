@@ -31,10 +31,12 @@
       </div>
     </ng-container>
     <ng-template #loading>
-      <p class="text-muted mb-0" *ngIf="!state.scanning && state.error; else scanning" i18n="watch.load-failed-try-again">The wallet could not be loaded. Try again, or change or forget it in Settings.</p>
-    </ng-template>
-    <ng-template #scanning>
-      <div class="wallet-state-loading">
+      <p class="text-muted mb-0" *ngIf="!state.scanning && state.error" i18n="watch.load-failed-try-again">The wallet could not be loaded. Try again, or change or forget it in Settings.</p>
+      <p class="text-muted mb-0" *ngIf="!state.scanning && state.cancelled">
+        <ng-container i18n="watch.load-cancelled">Loading was cancelled.</ng-container>
+        <button type="button" class="btn btn-sm btn-primary ms-2" (click)="session.refresh()" i18n="watch.load-again">Load again</button>
+      </p>
+      <div class="wallet-state-loading" *ngIf="state.scanning || (!state.error && !state.cancelled)">
         <div role="status" aria-live="polite"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>{{ loadingTitle }}</div>
         <app-watch-scan-status *ngIf="state.progress as progress" [progress]="progress"></app-watch-scan-status>
       </div>
@@ -62,7 +64,6 @@
         </div>
         <div class="receive-qr"><app-qrcode [size]="170" [data]="receive.address"></app-qrcode></div>
       </div>
-      <p class="text-muted mb-0" *ngIf="view.truncated" i18n="watch.receive.unavailable-truncated">Receive address unavailable: this wallet's history is incomplete, so the next unused address is not known.</p>
     </div>
   </section>
 

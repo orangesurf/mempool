@@ -57,6 +57,7 @@
         </ng-container>
       </ng-container>
     </button>
+    <button type="button" class="btn btn-outline-secondary ms-2" *ngIf="state.scanning" (click)="session.cancelScan()" i18n="watch.cancel-scan">Cancel</button>
 
     <p class="text-muted mt-2 mb-0" *ngIf="state.scanning && state.progress as progress">
       <app-watch-scan-status [progress]="progress"></app-watch-scan-status>

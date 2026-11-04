@@ -37,10 +37,10 @@
       <tbody>
         <tr *ngFor="let row of visible; trackBy: trackByAddress" [class.used-address]="row.usage === 'used'">
           <td class="address-cell">
-            <span class="status-dot" [class.used]="row.usage === 'used'" [class.unknown]="row.usage === 'unknown'" [title]="usageLabels[row.usage]" aria-hidden="true"></span>
+            <span class="status-dot" [class.used]="row.usage === 'used'" [title]="usageLabels[row.usage]" aria-hidden="true"></span>
             <span class="visually-hidden">{{ usageLabels[row.usage] }}</span>
             <a [routerLink]="['/address/' | relativeUrl, row.derived.address]">{{ row.derived.address }}</a>
-            <app-clipboard *ngIf="row.usage !== 'unknown'" [text]="row.derived.address" size="small"></app-clipboard>
+            <app-clipboard [text]="row.derived.address" size="small"></app-clipboard>
           </td>
           <td *ngIf="!isAddressList" class="path-cell">{{ row.path }}</td>
           <td class="text-end balance-cell" [class.zero-balance]="row.balance === 0">

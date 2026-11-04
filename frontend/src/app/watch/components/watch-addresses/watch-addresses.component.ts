@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, Input, OnChanges } from '@angular/c
 import { derivationPath, WalletView } from '@app/watch/wallet-math';
 import { DerivedAddress } from '@app/watch/watch.types';
 
-type AddressUsage = 'used' | 'unused' | 'unknown';
+type AddressUsage = 'used' | 'unused';
 
 export interface AddressRow {
   derived: DerivedAddress;
@@ -27,7 +27,6 @@ export class WatchAddressesComponent implements OnChanges {
   readonly usageLabels: Record<AddressUsage, string> = {
     used: $localize`:@@watch.address-used:Used`,
     unused: $localize`:@@watch.address-unused:Unused`,
-    unknown: $localize`:@@watch.address-usage-unknown:Unknown: the history is incomplete`,
   };
 
   chainFilter: ChainFilter = 'all';
@@ -75,7 +74,7 @@ export class WatchAddressesComponent implements OnChanges {
         derived,
         path: derivationPath(view.wallet, derived),
         balance: balances.get(derived.address) ?? 0,
-        usage: view.used.has(derived.address) ? 'used' : view.truncated ? 'unknown' : 'unused',
+        usage: view.used.has(derived.address) ? 'used' : 'unused',
       }));
   }
 }

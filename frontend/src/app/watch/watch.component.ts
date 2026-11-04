@@ -10,7 +10,7 @@ import { WalletTrackerService } from '@app/watch/services/wallet-tracker.service
 
 export type WatchTab = 'overview' | 'transactions' | 'utxos' | 'addresses' | 'settings';
 
-/** The wallet refreshes on every block, so its update time is only shown once it may be stale. */
+/** The wallet refreshes on every block, so its update time is only shown once it may be stale or updates stopped. */
 const STALE_AFTER_MS = 30 * 60 * 1000;
 
 @Component({
@@ -66,7 +66,7 @@ export class WatchComponent implements OnInit, OnDestroy {
   }
 
   showUpdatedAt(state: WalletPageState, now: number | null): boolean {
-    return !!state.updatedAt && (!!state.error || (now ?? Date.now()) - state.updatedAt * 1000 > STALE_AFTER_MS);
+    return !!state.updatedAt && (!!state.error || state.cancelled || (now ?? Date.now()) - state.updatedAt * 1000 > STALE_AFTER_MS);
   }
 
   ngOnDestroy(): void {

@@ -7,7 +7,7 @@ import { buildWalletView, currentReceiveIndex, WalletView } from '@app/watch/wal
 import { BARE_KEY_SCRIPT_TYPES, fromMempoolNetwork, isBareExtendedKey } from '@app/watch/watch-key.utils';
 import { DescriptorWalletDefinition, ScriptType, WalletDefinition, WatchNetwork, WatchWallet } from '@app/watch/watch.types';
 import { DerivationService } from '@app/watch/services/derivation.service';
-import { applyLiveUpdate, HistoryCache, ScanIncompleteError, ScanProgress, walletId, WalletScannerService } from '@app/watch/services/wallet-scanner.service';
+import { applyLiveUpdate, HistoryCache, ScanIncompleteError, ScanProgress, walletId, WalletScanResult, WalletScannerService } from '@app/watch/services/wallet-scanner.service';
 import { BlockExtended } from '@interfaces/node-api.interface';
 import { WalletStorageService } from '@app/watch/services/wallet-storage.service';
 import { LiveUpdate, trackedAddresses, WalletTrackerService } from '@app/watch/services/wallet-tracker.service';
@@ -60,6 +60,12 @@ export interface WalletPageState {
   error: string | null;
   notice: string | null;
   scriptTypeCheck: ScriptTypeCheck | null;
+  /**
+   * The user cancelled a scan of the shown wallet. Blocks, reconnects and live updates then start
+   * no scan of it, so a long scan the user stopped doesn't start again by itself; the next scan
+   * the user starts (Check Mempool, a settings change, showing a wallet) clears it.
+   */
+  cancelled: boolean;
   /** 'on' while the shown wallet's addresses are tracked; otherwise it refreshes per block only. */
   liveUpdates: 'on' | 'off' | 'refused';
 }
@@ -76,6 +82,7 @@ const INITIAL_STATE: WalletPageState = {
   error: null,
   notice: null,
   scriptTypeCheck: null,
+  cancelled: false,
   liveUpdates: 'off',
 };
 
@@ -108,16 +115,16 @@ function validGapLimit(value: number): number {
 
 /**
  * State and actions for the /wallet page, provided by WatchComponent. One scan runs at a
- * time; `generation` discards the result of a scan overtaken by a network change. A wallet is
- * scanned in full when it is shown; on Check Mempool, a new block or a reconnect, only what changed
- * since its cached history is read, and a hidden tab waits until it is shown again. Between
- * blocks a wallet of up to ten addresses is updated from the websocket. Each burst of updates
- * also queues the incremental refresh, no sooner than LIVE_REFRESH_INTERVAL_MS after the last
- * scan ended, as the websocket does not report every removal. An update that arrives during a
- * scan (a refresh or an import) is applied to the view shown, and the scan's result then
- * replaces that view, possibly without the update if the server was read before it; the live
- * refresh that runScan schedules when the scan ends brings it back. A wallet whose history is
- * truncated gets neither automatic refresh, as each would be a full rescan.
+ * time; `generation` discards the result of a scan overtaken by a network change or cancelled.
+ * A wallet's first scan reads its whole history; when it is shown again, on Check Mempool, a new
+ * block or a reconnect, only what changed since its cached history is read, and a hidden tab
+ * waits until it is shown again. Between blocks a wallet of up to ten addresses is updated from
+ * the websocket. Each burst of updates also queues the incremental refresh, no sooner than
+ * LIVE_REFRESH_INTERVAL_MS after the last scan ended, as the websocket does not report every
+ * removal. An update that arrives during a scan (a refresh or an import) is applied to the view
+ * shown, and the scan's result then replaces that view, possibly without the update if the
+ * server was read before it; the live refresh that runScan schedules when the scan ends brings
+ * it back.
  */
 @Injectable()
 export class WalletSessionService implements OnDestroy {
@@ -129,8 +136,6 @@ export class WalletSessionService implements OnDestroy {
   private generation = 0;
   private mempoolNetwork: string | null = null;
   private refreshQueued = false;
-  /** The queued refresh only answers new blocks or live updates, so a truncated wallet can skip it. */
-  private queuedForChain = false;
   private liveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   /** Date.now() when the last scan finished. */
   private lastScanEnd = 0;
@@ -185,7 +190,6 @@ export class WalletSessionService implements OnDestroy {
     }
     this.mempoolNetwork = mempoolNetwork;
     this.refreshQueued = false;
-    this.queuedForChain = false;
     this.clearScriptTypeCheck();
     this.views.clear();
     this.scannedAt.clear();
@@ -267,7 +271,7 @@ export class WalletSessionService implements OnDestroy {
         return;
       }
       const tip = this.tracker.tip;
-      const { wallet, txs, truncated } = await this.scanner.scan({
+      const { wallet, txs } = await this.scanner.scan({
         definition,
         existingWalletId: id,
         onProgress: this.progressReporter(generation),
@@ -283,12 +287,12 @@ export class WalletSessionService implements OnDestroy {
       const liveRefreshWanted = this.liveRefreshWanted;
       this.cancelLiveRefresh();
       this.liveRefreshWanted = liveRefreshWanted;
-      this.storeView(buildWalletView(wallet, txs, truncated));
-      this.storeCache(wallet.id, truncated ? undefined : tip, txs);
+      this.storeView(buildWalletView(wallet, txs));
+      this.storeCache(wallet.id, tip, txs);
       const notice = withHistory?.length === 0 && !txs.length
         ? $localize`:@@watch.script-type-not-detected:No history found at m/…/0/0. If this key is from a Legacy, Nested SegWit or Taproot wallet, change the address type in Settings.`
         : null;
-      this.patch({ activeId: wallet.id, adding: false, notice });
+      this.patch({ activeId: wallet.id, adding: false, notice, cancelled: false });
       this.storage.saveActiveId(network, wallet.id);
       imported = true;
     });
@@ -310,8 +314,33 @@ export class WalletSessionService implements OnDestroy {
   }
 
   /**
+   * Ends the running scan at once; its requests stop at their next cancellation check. An import
+   * leaves the form open and the wallet behind it as it was. Any other scan is of the shown
+   * wallet, which keeps its previous view and is then `cancelled`.
+   */
+  cancelScan(): void {
+    if (!this.state.scanning) {
+      return;
+    }
+    this.generation++;
+    // An import may be waiting on the address-type check (checkNow); clearing it cancels its requests.
+    if (this.state.scriptTypeCheck?.status === 'checking') {
+      this.clearScriptTypeCheck();
+    }
+    if (!this.state.adding) {
+      // Live updates are stopped too: without the refreshes that follow them, the view would keep
+      // transactions the websocket never reports as removed. runScan's next scan tracks again.
+      this.tracker.stop();
+      this.cancelLiveRefresh();
+      this.refreshQueued = false;
+      this.patch({ cancelled: true, liveUpdates: 'off' });
+    }
+    this.endScan();
+  }
+
+  /**
    * Reads only what changed since the cached history, as on a new block. Without a usable cache
-   * (first scan failed, truncated, or the cached tip left the best chain) this is a full scan.
+   * (first scan failed or cancelled, or the cached tip left the best chain) this is a full scan.
    */
   checkMempool(): Promise<void> {
     return this.refreshActive(true);
@@ -370,7 +399,7 @@ export class WalletSessionService implements OnDestroy {
         return;
       }
       const tip = this.tracker.tip;
-      const { wallet, txs, truncated } = await this.scanner.scan({
+      const { wallet, txs } = await this.scanner.scan({
         definition,
         existingWalletId: id,
         onProgress: this.progressReporter(generation),
@@ -384,8 +413,8 @@ export class WalletSessionService implements OnDestroy {
       this.storage.replace(old.id, renamed);
       this.dropSessionState(old.id);
       this.patch({ wallets: this.state.wallets.map((w) => (w.id === old.id ? renamed : w)), activeId: renamed.id, notice: null });
-      this.storeView(buildWalletView(renamed, txs, truncated));
-      this.storeCache(wallet.id, truncated ? undefined : tip, txs);
+      this.storeView(buildWalletView(renamed, txs));
+      this.storeCache(wallet.id, tip, txs);
       this.storage.saveActiveId(network, wallet.id);
     });
     if (existing) {
@@ -515,7 +544,8 @@ export class WalletSessionService implements OnDestroy {
 
   private async runScan(scan: (generation: number) => Promise<void>): Promise<void> {
     const generation = ++this.generation;
-    this.patch({ scanning: true, progress: null, error: null });
+    // An import doesn't scan the wallet behind the form, so that wallet stays cancelled.
+    this.patch({ scanning: true, progress: null, error: null, cancelled: this.state.adding && this.state.cancelled });
     try {
       await scan(generation);
     } catch (e) {
@@ -524,16 +554,20 @@ export class WalletSessionService implements OnDestroy {
       }
     } finally {
       if (generation === this.generation) {
-        this.lastScanEnd = Date.now();
-        this.patch({ scanning: false, progress: null });
-        this.startTracking();
-        if (this.liveRefreshWanted) {
-          this.liveRefreshWanted = false;
-          this.scheduleLiveRefresh();
-        }
-        this.runQueuedRefresh();
+        this.endScan();
       }
     }
+  }
+
+  private endScan(): void {
+    this.lastScanEnd = Date.now();
+    this.patch({ scanning: false, progress: null });
+    this.startTracking();
+    if (this.liveRefreshWanted) {
+      this.liveRefreshWanted = false;
+      this.scheduleLiveRefresh();
+    }
+    this.runQueuedRefresh();
   }
 
   private async show(id: string, notice: string | null): Promise<void> {
@@ -544,43 +578,27 @@ export class WalletSessionService implements OnDestroy {
     this.cancelLiveRefresh();
     const view = this.views.get(id) ?? null;
     this.clearScriptTypeCheck();
-    this.patch({ activeId: id, view, updatedAt: this.scannedAt.get(id) ?? null, adding: false, error: null, notice, liveUpdates: 'off' });
+    this.patch({ activeId: id, view, updatedAt: this.scannedAt.get(id) ?? null, adding: false, error: null, notice, cancelled: false, liveUpdates: 'off' });
     this.startTracking();
     if (this.state.network) {
       this.storage.saveActiveId(this.state.network, id);
     }
-    await this.refresh();
+    await this.refreshActive(true);
   }
 
-  private onChainChange(live = false): void {
-    // Queued during a scan, the block is weighed against the scan's result (runQueuedRefresh):
-    // the view shown now may be about to be replaced by a complete one.
-    if (this.state.scanning || this.state.adding || document.hidden) {
-      this.queueRefresh(live ? 'live' : 'chain');
+  private onChainChange(): void {
+    if (this.state.cancelled) {
       return;
     }
-    // A truncated history is already incomplete, and rescanning it takes longer than a block
-    // interval: refreshing on every block would keep the wallet scanning without pause.
-    if (this.state.view?.truncated) {
+    if (this.state.scanning || this.state.adding || document.hidden) {
+      this.refreshQueued = true;
       return;
     }
     void this.refreshActive(true);
   }
 
-  /** 'chain' (a new tip or a reconnect) and 'live' (the live refresh timer) are dropped for a truncated wallet. */
-  private queueRefresh(source: 'chain' | 'live' | 'settings'): void {
-    const fresh = !this.refreshQueued;
-    this.queuedForChain = source !== 'settings' && (this.queuedForChain || fresh);
-    this.refreshQueued = true;
-  }
-
   private runQueuedRefresh(): void {
     // Only once the scan is over: until then the view shown may be about to be replaced.
-    if (this.refreshQueued && this.queuedForChain && !this.state.scanning && this.state.view?.truncated) {
-      this.refreshQueued = false;
-      this.queuedForChain = false;
-      return;
-    }
     if (this.refreshQueued && !this.state.adding && !this.state.scanning && !document.hidden && this.activeWallet) {
       void this.refreshActive(true);
     }
@@ -592,10 +610,8 @@ export class WalletSessionService implements OnDestroy {
       return;
     }
     this.refreshQueued = false;
-    this.queuedForChain = false;
     const tip = this.tracker.tip;
     const cache = incremental ? this.caches.get(wallet.id) : undefined;
-    this.caches.delete(wallet.id);
     // This refresh starts after any update still waiting for one.
     this.cancelLiveRefresh();
     await this.runScan(async (generation) => {
@@ -609,9 +625,17 @@ export class WalletSessionService implements OnDestroy {
         onProgress: this.progressReporter(generation),
         isCancelled: () => generation !== this.generation,
       };
-      const { wallet: scanned, txs, truncated } = cache
-        ? await this.scanner.refresh({ ...request, cache })
-        : await this.scanner.scan(request);
+      let result: WalletScanResult;
+      try {
+        result = cache ? await this.scanner.refresh({ ...request, cache }) : await this.scanner.scan(request);
+      } catch (e) {
+        // A cancelled scan keeps the cache, so the next refresh can still be incremental.
+        if (generation === this.generation) {
+          this.caches.delete(wallet.id);
+        }
+        throw e;
+      }
+      const { wallet: scanned, txs } = result;
       if (generation !== this.generation || this.state.activeId !== scanned.id) {
         return;
       }
@@ -623,25 +647,24 @@ export class WalletSessionService implements OnDestroy {
         merged = { ...scanned, label: current.label, receiveIndex: current.receiveIndex, gapLimit: current.gapLimit };
         gapLimitChanged = current.gapLimit !== scanned.gapLimit;
         if (gapLimitChanged) {
-          this.queueRefresh('settings');
+          this.refreshQueued = true;
         }
       }
-      this.storeView(buildWalletView(merged, txs, truncated));
-      this.storeCache(merged.id, truncated || gapLimitChanged ? undefined : tip, txs);
+      this.storeView(buildWalletView(merged, txs));
+      this.storeCache(merged.id, gapLimitChanged ? undefined : tip, txs);
     });
   }
 
   /** Again after each scan, as a scan can derive more addresses than can be tracked. */
   private startTracking(): void {
     const view = this.state.view;
-    // While the add-wallet form is open, the wallet behind it stays tracked.
-    if (!view || view.wallet.id !== this.state.activeId) {
+    // While the add-wallet form is open, the wallet behind it stays tracked. A cancelled wallet
+    // isn't, as cancelScan explains.
+    if (!view || view.wallet.id !== this.state.activeId || this.state.cancelled) {
       return;
     }
     const id = view.wallet.id;
-    // A truncated history isn't refreshed automatically, so it couldn't reconcile live updates
-    // the server doesn't report, such as evictions.
-    const addresses = view.truncated ? [] : trackedAddresses(view.wallet);
+    const addresses = trackedAddresses(view.wallet);
     const refused = addresses.length > 0 && this.refused.has(id);
     this.tracker.track(refused ? [] : addresses, {
       onUpdate: (update) => this.onLiveUpdate(id, update),
@@ -671,7 +694,7 @@ export class WalletSessionService implements OnDestroy {
     if (!transactions) {
       return;
     }
-    const updated = buildWalletView(view.wallet, transactions, view.truncated);
+    const updated = buildWalletView(view.wallet, transactions);
     this.views.set(id, updated);
     this.patch({ view: updated });
   }
@@ -683,7 +706,7 @@ export class WalletSessionService implements OnDestroy {
       if (this.state.scanning) {
         this.liveRefreshWanted = true;
       } else {
-        this.onChainChange(true);
+        this.onChainChange();
       }
     }, Math.max(LIVE_REFRESH_DELAY_MS, this.lastScanEnd + LIVE_REFRESH_INTERVAL_MS - Date.now()));
   }

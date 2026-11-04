@@ -8,7 +8,7 @@
 # mempool wallet (experimental)
 
 > [!WARNING]
-> The wallet is an experimental preview. It is not ready for production use: expect bugs, incomplete history on large wallets and changes without notice. Don't rely on it as your only view of a wallet's balance.
+> The wallet is an experimental preview. It is not ready for production use: expect bugs, slow loading of large wallets and changes without notice. Don't rely on it as your only view of a wallet's balance.
 
 The mempool wallet is a **watch-only** wallet built into the mempool frontend at `/wallet`. You give it a public descriptor, an extended public key or a list of addresses, and it shows the wallet's balance, transactions, UTXOs and addresses using the same API as the rest of the site. It holds no private keys and cannot sign or send transactions.
 
@@ -64,7 +64,7 @@ An address list works the same way, without derivation. This one watches the gen
 
 ![The genesis address as an address-list wallet](frontend/src/app/watch/screenshots/address-list.png)
 
-The genesis address has more history than the wallet loads in the browser, so it shows the incomplete-history warning.
+The genesis address has a long history, so it takes a long time to load.
 
 ## Privacy and storage
 
@@ -75,8 +75,8 @@ The genesis address has more history than the wallet loads in the browser, so it
 ## Limitations
 
 - Watch-only: no sending, signing or PSBT support.
-- Wallets with more than about 10,000 transactions load incompletely and show a warning that the balance and history are incomplete.
-- Unconfirmed transactions appear live only for wallets of up to 10 addresses, the server's limit per connection, and whose history loaded completely. Other wallets show them on the next block or after **Check Mempool**; a wallet with incomplete history only after **Check Mempool**.
+- The first load of a wallet reads its whole history, 50 transactions per request. On mempool.space, requests beyond the first 15 go out one every 3.5 seconds, so a wallet with 10,000 transactions takes about 10 minutes. The progress shows the addresses and transactions found so far. **Cancel** stops a load or update; the wallet then isn't updated automatically until you select **Check Mempool** or switch to it again. Later updates, and switching back to a wallet already loaded in the tab, read only what changed.
+- Unconfirmed transactions appear live only for wallets of up to 10 addresses, the server's limit per connection. Other wallets show them on the next block or after **Check Mempool**.
 - Taproot script paths and descriptors beyond those listed above are not supported.
 
 The screenshots use the public BIP84 test descriptor (the `abandon … about` test mnemonic, fingerprint `73c5da0a`) and the genesis address. Don't send funds to test wallets.

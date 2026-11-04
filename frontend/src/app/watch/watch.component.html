@@ -25,20 +25,25 @@
           <ng-template #idle>
             <small *ngIf="showUpdatedAt(state, clock$ | async); else automatic" i18n="watch.updated-at">Updated <app-time kind="since" [time]="state.updatedAt" [lowercaseStart]="true" [showTooltip]="true"></app-time></small>
             <ng-template #automatic>
-              <small *ngIf="!state.error && !state.view?.truncated">
+              <small *ngIf="!state.error && !state.cancelled">
                 <ng-container *ngIf="state.liveUpdates === 'on'; else perBlock" i18n="watch.updates-live">Updates live as transactions arrive</ng-container>
                 <ng-template #perBlock><ng-container i18n="watch.updates-automatically">Updates automatically with each new block</ng-container></ng-template>
               </small>
             </ng-template>
-            <!-- Kept beside the age too: an incomplete wallet only updates when asked. -->
-            <small class="d-block" *ngIf="!state.error && state.view?.truncated" i18n="watch.updates-manual-truncated">Not updated automatically while the history is incomplete</small>
+            <!-- Kept beside the age too: a cancelled wallet only updates when asked. -->
+            <small class="d-block" *ngIf="state.cancelled" i18n="watch.updates-cancelled">Update cancelled. Not updated automatically until you check again</small>
           </ng-template>
         </span>
-        <button type="button" class="btn btn-sm btn-outline-info" (click)="session.checkMempool()" [disabled]="state.scanning">
-          <span *ngIf="state.scanning" class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
-          <ng-container *ngIf="state.error && !state.scanning; else checkLabel" i18n="watch.try-again">Try again</ng-container>
-          <ng-template #checkLabel><ng-container i18n="watch.check-mempool">Check Mempool</ng-container></ng-template>
+        <button *ngIf="state.scanning; else checkButton" type="button" class="btn btn-sm btn-outline-secondary" (click)="session.cancelScan()">
+          <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+          <ng-container i18n="watch.cancel-scan">Cancel</ng-container>
         </button>
+        <ng-template #checkButton>
+          <button type="button" class="btn btn-sm btn-outline-info" (click)="session.checkMempool()">
+            <ng-container *ngIf="state.error; else checkLabel" i18n="watch.try-again">Try again</ng-container>
+            <ng-template #checkLabel><ng-container i18n="watch.check-mempool">Check Mempool</ng-container></ng-template>
+          </button>
+        </ng-template>
       </div>
       <div class="alert alert-info mt-3 mb-0" *ngIf="state.notice">{{ state.notice }}</div>
       <div class="alert alert-danger mt-3 mb-0" *ngIf="state.error">
@@ -47,9 +52,6 @@
       </div>
       <div class="alert alert-info mt-3 mb-0" *ngIf="state.liveUpdates === 'refused'" i18n="watch.live-updates-unavailable">
         Live updates aren't available for this wallet. It will refresh on each new block instead.
-      </div>
-      <div class="alert alert-warning mt-3 mb-0" *ngIf="state.view?.truncated" i18n="watch.truncated">
-        This wallet has too much history to load completely in the browser. The balance and transactions are incomplete.
       </div>
 
       <ul ngbNav #walletNav="ngbNav" [(activeId)]="activeTab" [animation]="false" class="nav-tabs watch-tabs" role="tablist">
@@ -86,9 +88,15 @@
       </ul>
       <div class="watch-tab-content" [ngbNavOutlet]="walletNav"></div>
       <ng-template #walletLoading>
-        <div class="box wallet-loading" role="status" aria-live="polite" *ngIf="state.scanning || !state.error; else loadFailed">
+        <div class="box wallet-loading" role="status" aria-live="polite" *ngIf="state.scanning || (!state.error && !state.cancelled); else loadStopped">
           <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
           <ng-container i18n="watch.loading-wallet">Loading wallet…</ng-container>
+        </div>
+      </ng-template>
+      <ng-template #loadStopped>
+        <div class="box wallet-loading" *ngIf="state.cancelled; else loadFailed">
+          <ng-container i18n="watch.load-cancelled">Loading was cancelled.</ng-container>
+          <button type="button" class="btn btn-sm btn-primary ms-2" (click)="session.refresh()" i18n="watch.load-again">Load again</button>
         </div>
       </ng-template>
       <ng-template #loadFailed>
