@@ -2,7 +2,6 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { ElectrsApiService } from '@app/services/electrs-api.service';
 import { Transaction } from '@interfaces/electrs.interface';
-import { firstValueFrom } from 'rxjs';
 import { hash as sha256 } from '@app/shared/sha256';
 import { RequestCancelledError, RetryOptions, RetryWait, withRetry } from '@app/watch/api-retry';
 import { sortNewestFirst } from '@app/watch/wallet-math';
@@ -312,10 +311,7 @@ class HistoryCollector {
 
   private async fetchPage(addresses: string[], cursor: string | undefined): Promise<Transaction[] | null> {
     try {
-      return await withRetry(
-        () => firstValueFrom(this.electrsApiService.getAddressesTransactions$(addresses, cursor, PAGE_SIZE)),
-        this.retryOptions,
-      ) || [];
+      return await withRetry(this.electrsApiService.getAddressesTransactions$(addresses, cursor, PAGE_SIZE), this.retryOptions) || [];
     } catch (e) {
       if (cursor && e instanceof HttpErrorResponse && e.status === 422 && e.error === 'after_txid not found') {
         return null;
@@ -346,7 +342,7 @@ export class WalletScannerService {
     const wanted = new Set(addresses);
     const used = new Set<string>();
     const read = async (batch: string[], maxTxs: number): Promise<number> => {
-      const page = await withRetry(() => firstValueFrom(this.electrsApiService.getAddressesTransactions$(batch, undefined, maxTxs)), this.queued(options)) || [];
+      const page = await withRetry(this.electrsApiService.getAddressesTransactions$(batch, undefined, maxTxs), this.queued(options)) || [];
       for (const tx of page) {
         for (const address of [...(tx.vin || []).map((vin) => vin.prevout?.scriptpubkey_address), ...(tx.vout || []).map((vout) => vout.scriptpubkey_address)]) {
           if (address && wanted.has(address)) {
@@ -432,7 +428,7 @@ export class WalletScannerService {
 
   private async tipStillBest(cache: HistoryCache, isCancelled?: () => boolean): Promise<boolean> {
     try {
-      const hash = await withRetry(() => firstValueFrom(this.electrsApiService.getBlockHashFromHeight$(cache.tipHeight)), { isCancelled });
+      const hash = await withRetry(this.electrsApiService.getBlockHashFromHeight$(cache.tipHeight), { isCancelled });
       return hash?.trim() === cache.tipHash;
     } catch (e) {
       if (e instanceof RequestCancelledError) {

@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { defer, filter, firstValueFrom, interval, map, Observable, race, retry, switchMap, tap, timer } from 'rxjs';
 import type { RequestQueue } from '@app/watch/request-queue';
 
 // Only "come back later" answers (429, 503) are retried; 413 and 504 mean the query is too
@@ -11,7 +12,6 @@ const RETRYABLE_STATUSES = new Set([429, 503]);
 
 export interface RetryWait {
   status: number;
-  seconds: number;
 }
 
 export class RequestCancelledError extends Error {
@@ -55,38 +55,36 @@ export function retryDelayMs(error: unknown, retry: number, random: () => number
 }
 
 export interface RetryOptions {
-  /** Called once a second while waiting, and with null when the wait is over. */
+  /** Called with the status when a wait before a retry starts, and with null when it is over. */
   onWait?: (wait: RetryWait | null) => void;
   isCancelled?: () => boolean;
   queue?: RequestQueue | null;
 }
 
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-
-export async function withRetry<T>(request: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
+/** Subscribes to `request$`, after queue admission each time, until it succeeds or the error is not retried. */
+export function withRetry<T>(request$: Observable<T>, options: RetryOptions = {}): Promise<T> {
   const { onWait, isCancelled, queue } = options;
-  for (let retry = 0; ; retry++) {
+  // Waits can be long, so a cancelled scan is noticed within a second rather than at the end.
+  const cancelled$ = interval(1000).pipe(
+    filter(() => !!isCancelled?.()),
+    map(() => { throw new RequestCancelledError(); }),
+  );
+  const attempt$ = defer(async () => {
     if (isCancelled?.()) {
       throw new RequestCancelledError();
     }
     await queue?.take({ isCancelled });
-    try {
-      return await request();
-    } catch (error) {
-      const delay = retryDelayMs(error, retry);
-      if (delay === null) {
-        throw error;
-      }
-      const status = (error as HttpErrorResponse).status;
-      const resumeAt = Date.now() + delay;
-      for (let left = delay; left > 0; left = resumeAt - Date.now()) {
-        onWait?.({ status, seconds: Math.ceil(left / 1000) });
-        await sleep(Math.min(left, 1000));
-        if (isCancelled?.()) {
-          throw new RequestCancelledError();
+  }).pipe(switchMap(() => request$));
+  return firstValueFrom(attempt$.pipe(
+    retry({
+      delay: (error, retryCount) => {
+        const delay = retryDelayMs(error, retryCount - 1);
+        if (delay === null) {
+          throw error;
         }
-      }
-      onWait?.(null);
-    }
-  }
+        onWait?.({ status: (error as HttpErrorResponse).status });
+        return race(timer(delay), cancelled$).pipe(tap(() => onWait?.(null)));
+      },
+    }),
+  ));
 }
