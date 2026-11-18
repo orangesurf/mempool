@@ -59,26 +59,32 @@ interface ColorPalette {
   baseLevel: (tx: TxView, rate: number, time: number) => number,
 }
 
-// precomputed colors
-const defaultColors: { [key: string]: ColorPalette } = {
-  fee: {
-    base: defaultMempoolFeeColors.map(hexToColor),
-    audit: [],
-    marginal: [],
-    baseLevel: (tx: TxView, rate: number) => feeLevels.findIndex((feeLvl) => Math.max(0, rate) < feeLvl) - 1
-  },
-};
-for (const key in defaultColors) {
-  const base = defaultColors[key].base;
-  defaultColors[key].audit = base.map((color) => darken(desaturate(color, 0.3), 0.9));
-  defaultColors[key].marginal = base.map((color) => darken(desaturate(color, 0.8), 1.1));
-  defaultColors['unmatched' + key] = {
-    base: defaultColors[key].base.map(c => setOpacity(c, 0.2)),
-    audit: defaultColors[key].audit.map(c => setOpacity(c, 0.2)),
-    marginal: defaultColors[key].marginal.map(c => setOpacity(c, 0.2)),
-    baseLevel: defaultColors[key].baseLevel,
+/** Precomputes a fee palette, with audit, marginal and unmatched variants, from hex colours. */
+export function buildFeeColors(hexColors: string[]): { [key: string]: ColorPalette } {
+  const colors: { [key: string]: ColorPalette } = {
+    fee: {
+      base: hexColors.map(hexToColor),
+      audit: [],
+      marginal: [],
+      baseLevel: (tx: TxView, rate: number) => feeLevels.findIndex((feeLvl) => Math.max(0, rate) < feeLvl) - 1
+    },
   };
+  for (const key in colors) {
+    const base = colors[key].base;
+    colors[key].audit = base.map((color) => darken(desaturate(color, 0.3), 0.9));
+    colors[key].marginal = base.map((color) => darken(desaturate(color, 0.8), 1.1));
+    colors['unmatched' + key] = {
+      base: colors[key].base.map(c => setOpacity(c, 0.2)),
+      audit: colors[key].audit.map(c => setOpacity(c, 0.2)),
+      marginal: colors[key].marginal.map(c => setOpacity(c, 0.2)),
+      baseLevel: colors[key].baseLevel,
+    };
+  }
+  return colors;
 }
+
+// precomputed colors
+const defaultColors = buildFeeColors(defaultMempoolFeeColors);
 
 export { defaultColors as defaultColors };
 
@@ -91,25 +97,7 @@ export const defaultAuditColors = {
   accelerated: hexToColor('8f5ff6'),
 };
 
-const contrastColors: { [key: string]: ColorPalette } = {
-  fee: {
-    base: contrastMempoolFeeColors.map(hexToColor),
-    audit: [],
-    marginal: [],
-    baseLevel: (tx: TxView, rate: number) => feeLevels.findIndex((feeLvl) => Math.max(0, rate) < feeLvl) - 1
-  },
-};
-for (const key in contrastColors) {
-  const base = contrastColors[key].base;
-  contrastColors[key].audit = base.map((color) => darken(desaturate(color, 0.3), 0.9));
-  contrastColors[key].marginal = base.map((color) => darken(desaturate(color, 0.8), 1.1));
-  contrastColors['unmatched' + key] = {
-    base: contrastColors[key].base.map(c => setOpacity(c, 0.2)),
-    audit: contrastColors[key].audit.map(c => setOpacity(c, 0.2)),
-    marginal: contrastColors[key].marginal.map(c => setOpacity(c, 0.2)),
-    baseLevel: contrastColors[key].baseLevel,
-  };
-}
+const contrastColors = buildFeeColors(contrastMempoolFeeColors);
 
 export { contrastColors as contrastColors };
 
@@ -121,6 +109,36 @@ export const contrastAuditColors = {
   prioritized: darken(desaturate(hexToColor('00bb98'), 0.3), 0.7),
   accelerated: hexToColor('8f5ff6'),
 };
+
+/** The colours the block overview uses for one theme. */
+export interface ThemeBlockColors {
+  colors: { [key: string]: ColorPalette };
+  auditColors: { [status: string]: Color };
+  unmatchedAuditColors: { [status: string]: Color };
+}
+
+const unmatchedOpacity = 0.2;
+
+export function themeBlockColorSet(colors: { [key: string]: ColorPalette }, auditColors: { [status: string]: Color }): ThemeBlockColors {
+  const unmatchedAuditColors: { [status: string]: Color } = {};
+  for (const status in auditColors) {
+    unmatchedAuditColors[status] = setOpacity(auditColors[status], unmatchedOpacity);
+  }
+  return { colors, auditColors, unmatchedAuditColors };
+}
+
+const defaultBlockColors = themeBlockColorSet(defaultColors, defaultAuditColors);
+const contrastBlockColors = themeBlockColorSet(contrastColors, contrastAuditColors);
+
+/** Themes with their own block overview colours. Any other theme uses the default colours. */
+const themeBlockColorSets: { [theme: string]: ThemeBlockColors } = {
+  contrast: contrastBlockColors,
+  bukele: contrastBlockColors,
+};
+
+export function themeBlockColors(theme: string): ThemeBlockColors {
+  return themeBlockColorSets[theme] ?? defaultBlockColors;
+}
 
 export function defaultColorFunction(
   tx: TxView,
@@ -193,6 +211,12 @@ export function contrastColorFunction(
   relativeTime?: number,
 ): Color {
   return defaultColorFunction(tx, colors, auditColors, relativeTime);
+}
+
+/** The default transaction colour function for a theme. */
+export function themeColorFunction(theme: string): (tx: TxView) => Color {
+  const { colors, auditColors } = themeBlockColors(theme);
+  return (tx: TxView) => defaultColorFunction(tx, colors.fee, auditColors);
 }
 
 export function ageColorFunction(

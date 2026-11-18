@@ -9,27 +9,9 @@ import { Price } from '@app/services/price.service';
 import { StateService } from '@app/services/state.service';
 import { ThemeService } from '@app/services/theme.service';
 import { Subscription } from 'rxjs';
-import { defaultColorFunction, setOpacity, defaultAuditColors, defaultColors, ageColorFunction, contrastColorFunction, contrastAuditColors, contrastColors } from '@components/block-overview-graph/utils';
+import { defaultColorFunction, ageColorFunction, themeBlockColors } from '@components/block-overview-graph/utils';
 import { ActiveFilter, FilterMode, toFlags } from '@app/shared/filters.utils';
 import { detectWebGL } from '@app/shared/graphs.utils';
-
-const unmatchedOpacity = 0.2;
-const unmatchedAuditColors = {
-  censored: setOpacity(defaultAuditColors.censored, unmatchedOpacity),
-  missing: setOpacity(defaultAuditColors.missing, unmatchedOpacity),
-  added: setOpacity(defaultAuditColors.added, unmatchedOpacity),
-  added_prioritized: setOpacity(defaultAuditColors.added_prioritized, unmatchedOpacity),
-  prioritized: setOpacity(defaultAuditColors.prioritized, unmatchedOpacity),
-  accelerated: setOpacity(defaultAuditColors.accelerated, unmatchedOpacity),
-};
-const unmatchedContrastAuditColors = {
-  censored: setOpacity(contrastAuditColors.censored, unmatchedOpacity),
-  missing: setOpacity(contrastAuditColors.missing, unmatchedOpacity),
-  added: setOpacity(contrastAuditColors.added, unmatchedOpacity),
-  added_prioritized: setOpacity(contrastAuditColors.added_prioritized, unmatchedOpacity),
-  prioritized: setOpacity(contrastAuditColors.prioritized, unmatchedOpacity),
-  accelerated: setOpacity(contrastAuditColors.accelerated, unmatchedOpacity),
-};
 
 @Component({
   selector: 'app-block-overview-graph',
@@ -674,28 +656,12 @@ export class BlockOverviewGraphComponent implements AfterViewInit, OnDestroy, On
           matches = (tx.bigintFlags & flags) === 0n;
           break;
       }
+      const { colors, auditColors, unmatchedAuditColors } = themeBlockColors(this.loadedTheme);
+      const relativeTime = this.relativeTime || (Date.now() / 1000);
       if (matches) {
-        if (this.loadedTheme !== 'contrast' && this.loadedTheme !== 'bukele') {
-          return (gradient === 'age') ? ageColorFunction(tx, defaultColors.fee, defaultAuditColors, this.relativeTime || (Date.now() / 1000)) : defaultColorFunction(tx, defaultColors.fee, defaultAuditColors, this.relativeTime || (Date.now() / 1000));
-        } else {
-          return (gradient === 'age') ? ageColorFunction(tx, contrastColors.fee, contrastAuditColors, this.relativeTime || (Date.now() / 1000)) : contrastColorFunction(tx, contrastColors.fee, contrastAuditColors, this.relativeTime || (Date.now() / 1000));
-        }
+        return (gradient === 'age') ? ageColorFunction(tx, colors.fee, auditColors, relativeTime) : defaultColorFunction(tx, colors.fee, auditColors, relativeTime);
       } else {
-        if (this.loadedTheme !== 'contrast' && this.loadedTheme !== 'bukele') {
-          return (gradient === 'age') ? { r: 1, g: 1, b: 1, a: 0.05 } : defaultColorFunction(
-            tx,
-            defaultColors.unmatchedfee,
-            unmatchedAuditColors,
-            this.relativeTime || (Date.now() / 1000)
-          );
-        } else {
-          return (gradient === 'age') ? { r: 1, g: 1, b: 1, a: 0.05 } : contrastColorFunction(
-            tx,
-            contrastColors.unmatchedfee,
-            unmatchedContrastAuditColors,
-            this.relativeTime || (Date.now() / 1000)
-          );
-        }
+        return (gradient === 'age') ? { r: 1, g: 1, b: 1, a: 0.05 } : defaultColorFunction(tx, colors.unmatchedfee, unmatchedAuditColors, relativeTime);
       }
     };
   }
