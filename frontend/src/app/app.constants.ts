@@ -124,6 +124,13 @@ export const contrastMempoolFeeColors = [
   '8b1954',
 ];
 
+/** Mempool fee colour palettes for themes that don't use the default palette. */
+export const themeMempoolFeeColors: { [theme: string]: string[] } = {
+  contrast: contrastMempoolFeeColors,
+  bukele: contrastMempoolFeeColors,
+  nymkappa: lightMempoolFeeColors,
+};
+
 export const chartColors = [
   '#A81524',
   '#D81B60',

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
-import { defaultMempoolFeeColors, contrastMempoolFeeColors, lightMempoolFeeColors } from '@app/app.constants';
+import { defaultMempoolFeeColors, themeMempoolFeeColors } from '@app/app.constants';
 import { StorageService } from '@app/services/storage.service';
 import { StateService } from '@app/services/state.service';
 
@@ -121,15 +121,7 @@ export class ThemeService {
   }
 
   private getMempoolFeeColors(theme: string): string[] {
-    switch (theme) {
-      case 'contrast':
-      case 'bukele':
-        return contrastMempoolFeeColors;
-      case 'nymkappa':
-        return lightMempoolFeeColors;
-      default:
-        return defaultMempoolFeeColors;
-    }
+    return themeMempoolFeeColors[theme] ?? defaultMempoolFeeColors;
   }
 
   private isAprilFirst(): boolean {
