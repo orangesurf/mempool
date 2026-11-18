@@ -124,11 +124,54 @@ export const contrastMempoolFeeColors = [
   '8b1954',
 ];
 
+export const maraMempoolFeeColors = [
+  '353532',
+  '605f5b',
+  '777570',
+  '898781',
+  '9f9e93',
+  'b6b7a5',
+  'cbceb5',
+  'd5e081',
+  'dcf03f',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+  'e2ff00',
+];
+
 /** Mempool fee colour palettes for themes that don't use the default palette. */
 export const themeMempoolFeeColors: { [theme: string]: string[] } = {
   contrast: contrastMempoolFeeColors,
   bukele: contrastMempoolFeeColors,
   nymkappa: lightMempoolFeeColors,
+  mara: maraMempoolFeeColors,
 };
 
 export const chartColors = [

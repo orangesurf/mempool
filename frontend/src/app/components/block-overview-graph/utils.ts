@@ -1,4 +1,4 @@
-import { feeLevels, defaultMempoolFeeColors, contrastMempoolFeeColors } from '@app/app.constants';
+import { feeLevels, defaultMempoolFeeColors, contrastMempoolFeeColors, maraMempoolFeeColors } from '@app/app.constants';
 import { Color } from '@components/block-overview-graph/sprite-types';
 import TxView from '@components/block-overview-graph/tx-view';
 
@@ -134,6 +134,7 @@ const contrastBlockColors = themeBlockColorSet(contrastColors, contrastAuditColo
 const themeBlockColorSets: { [theme: string]: ThemeBlockColors } = {
   contrast: contrastBlockColors,
   bukele: contrastBlockColors,
+  mara: themeBlockColorSet(buildFeeColors(maraMempoolFeeColors), defaultAuditColors),
 };
 
 export function themeBlockColors(theme: string): ThemeBlockColors {
