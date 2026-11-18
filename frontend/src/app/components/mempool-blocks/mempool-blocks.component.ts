@@ -417,9 +417,16 @@ export class MempoolBlocksComponent implements OnInit, OnChanges, OnDestroy {
       `);
     });
 
+    let medianLevelIndex = feeLevels.slice().reverse().findIndex((feeLvl) => mempoolBlock.medianFee >= feeLvl);
+    medianLevelIndex = medianLevelIndex >= 0 ? feeLevels.length - medianLevelIndex : medianLevelIndex;
+    const feeColors = this.themeService.mempoolFeeColors;
+    const medianColor = feeColors[medianLevelIndex - 1] || feeColors[feeColors.length - 1];
+
     return {
       'right': this.containerOffset + index * this.blockOffset + 'px',
-      'background': backgroundGradients.join(',') + ')'
+      'background': backgroundGradients.join(',') + ')',
+      // lets a theme restyle the block in its median fee colour
+      '--block-fee-color': '#' + medianColor,
     };
   }
 
