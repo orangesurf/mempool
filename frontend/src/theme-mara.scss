@@ -1,0 +1,369 @@
+@use "sass:color";
+
+/* MARA theme: a grey mode with MARA neon chartreuse as the only highlight.
+   Colours from mara.com and foundation.mara.com. */
+$ink: #1A1A18;
+$ink-deep: color.mix($ink, #000, 80%);
+$charcoal: #272525;
+$charcoal-light: #302e2e;
+$light-100: #F7F4EF;
+$light-200: #EBEBEB;
+$chartreuse: #E2FF00;
+
+/* Greys mixed from MARA's off-white into its near-black */
+@function grey($percent) {
+  @return color.mix($light-100, $ink, $percent);
+}
+
+/* Call-to-action buttons; accelerator buttons share .btn-purple and stay purple */
+$cta: '.btn-purple:not(.accelerate):not(.accelerateDeepMempool):not(app-accelerate-checkout *)';
+$mara-pool-link: 'a[href$="/mining/pool/marapool"]';
+$mono: "JetBrains Mono", "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+$hairline: rgba($light-100, 0.14);
+$link: color.mix($chartreuse, $light-100, 45%);
+
+/* Theme */
+$bg: $ink;
+$active-bg: $ink-deep;
+$hover-bg: $charcoal-light;
+$fg: $light-100;
+$nav-bg: $ink-deep;
+$title-fg: $light-200;
+
+$taproot: #eba814;
+$taproot-light: #d5a90a;
+$taproot-dark: #9d7c05;
+
+/* Bootstrap */
+$body-bg: $bg;
+$body-color: $fg;
+$gray-800: $bg;
+$gray-700: $fg;
+
+$nav-tabs-link-active-bg: $active-bg;
+
+$primary: grey(22%);
+$secondary: grey(12%);
+$tertiary: grey(28%);
+$success: $chartreuse;
+$info: $link;
+
+$h5-font-size: 1.15rem !default;
+
+$pagination-bg: $body-bg;
+$pagination-border-color: $gray-800;
+$pagination-disabled-bg:           $fg;
+$pagination-disabled-border-color: $bg;
+$pagination-active-color:          $ink;
+$pagination-active-bg:             $chartreuse;
+$pagination-hover-bg:              $hover-bg;
+$pagination-hover-border-color:     $bg;
+$pagination-disabled-bg:          $bg;
+
+$form-select-indicator-color: $fg;
+
+.input-group-text {
+  background-color: grey(8%) !important;
+  border: 1px solid grey(20%) !important;
+}
+
+$link-color:                $link;
+$link-decoration:           none !default;
+$link-hover-color:          $chartreuse;
+$link-hover-decoration:     underline !default;
+
+$dropdown-bg: $bg;
+$dropdown-link-color: $fg;
+
+$dropdown-link-hover-color: $fg;
+$dropdown-link-hover-bg: $active-bg;
+
+$dropdown-link-active-color: $fg;
+$dropdown-link-active-bg: $active-bg;
+
+$box-bg: $charcoal;
+
+:root {
+  --bg: #{$bg};
+  --active-bg: #{$active-bg};
+  --hover-bg: #{$hover-bg};
+  --fg: #{$fg};
+  --nav-bg: #{$nav-bg};
+  --title-fg: #{$title-fg};
+
+  --primary: #{$primary};
+  --secondary: #{$secondary};
+  --tertiary: #{$tertiary};
+  --success: #{$success};
+  --info: #{$info};
+  --link-color: #{$link-color};
+  --link-hover-color: #{$link-hover-color};
+  --icon: #{$light-200};
+  --skeleton-bg: #{grey(12%)};
+  --skeleton-bg-light: #{grey(30%)};
+
+  --box-bg: #{$box-bg};
+  --stat-box-bg: #{$ink-deep};
+  --alert-bg: #{grey(18%)};
+  --transparent-fg: #{rgba($light-100, 0.73)};
+  --fade-out-box-bg-start: #{rgba($box-bg, 0)};
+  --fade-out-box-bg-end: #{rgba($box-bg, 1)};
+  --opacity: 0.9;
+
+  --testnet: #1d486f;
+  --signet: #6f1d5d;
+  --regtest: #7d7d7d;
+  --liquid: #116761;
+  --liquidtestnet: #494a4a;
+
+  --mainnet-alt: #{grey(40%)};
+  --testnet-alt: #183550;
+  --signet-alt: #471850;
+  --regtest-alt: #4a4a4a;
+  --liquidtestnet-alt: #272e46;
+
+  --block-top: #{grey(20%)};
+  --block-side: #{grey(7%)};
+  --mempool-block-top: #{grey(20%)};
+  --mempool-block-side: #{grey(7%)};
+
+  --taproot: #{$taproot};
+  --taproot-light: #{$taproot-light};
+  --taproot-dark: #{$taproot-dark};
+
+  --green: #{grey(80%)};
+  --red: #ff3d00;
+  --yellow: #{color.mix($chartreuse, $light-100, 60%)};
+  --grey: #8f8a85;
+  --tooltip-grey: #bdb9b4;
+  --orange: #ff9f00;
+  --pink: #e83e8c;
+
+  --search-button: #{$chartreuse};
+  --search-button-border: #{$chartreuse};
+  --search-button-focus: #{color.mix($chartreuse, #fff, 80%)};
+  --search-button-shadow: #{rgba($chartreuse, 0.4)};
+
+  --bs-border-radius: 0;
+  --bs-border-radius-sm: 0;
+  --bs-border-radius-lg: 0;
+  --bs-border-radius-xl: 0;
+  --bs-border-radius-pill: 0;
+}
+
+/* ── Highlights ── */
+
+/* Active nav tab: chartreuse with an ink icon */
+.navbar .navbar-nav li.nav-item.active {
+  background-color: #{$chartreuse};
+  --icon: #{$ink};
+  --nav-icon: #{$ink};
+}
+
+.navbar-dark .navbar-nav li.nav-item.active .nav-link {
+  color: #{$ink};
+}
+
+/* Search and call-to-action buttons: chartreuse with ink text */
+#{$cta} {
+  color: #{$ink};
+  --icon: #{$ink};
+  --bs-btn-color: #{$ink};
+  --bs-btn-bg: var(--search-button);
+  --bs-btn-border-color: var(--search-button-border);
+  --bs-btn-hover-color: #{$ink};
+  --bs-btn-active-color: #{$ink};
+  --bs-btn-disabled-color: #{$ink};
+  --bs-btn-disabled-bg: var(--search-button);
+  --bs-btn-disabled-border-color: var(--search-button-border);
+}
+
+#{$cta}:not(:disabled):not(.disabled):active, #{$cta}:not(:disabled):not(.disabled).active, .show > #{$cta}.dropdown-toggle {
+  color: #{$ink};
+  background-color: var(--search-button);
+  border-color: var(--search-button-border);
+}
+
+#{$cta}:focus, #{$cta}.focus {
+  color: #{$ink};
+  background-color: var(--search-button-focus);
+  border-color: var(--search-button);
+  box-shadow: 0 0 0 0.2rem var(--search-button-shadow);
+}
+
+#{$cta}:hover {
+  color: #{$ink};
+  background-color: var(--search-button-focus);
+  border-color: var(--search-button);
+}
+
+.btn-purple:not(#{$cta}) {
+  --icon: white;
+}
+
+/* Confirmed badges: chartreuse with ink text */
+.btn-success {
+  --bs-btn-color: #{$ink};
+  --bs-btn-bg: #{$chartreuse};
+  --bs-btn-border-color: #{$chartreuse};
+  --bs-btn-hover-color: #{$ink};
+  --bs-btn-hover-bg: #{$chartreuse};
+  --bs-btn-hover-border-color: #{$chartreuse};
+  --bs-btn-active-color: #{$ink};
+  --bs-btn-active-bg: #{$chartreuse};
+  --bs-btn-disabled-color: #{$ink};
+  --bs-btn-disabled-bg: #{$chartreuse};
+  --bs-btn-disabled-border-color: #{$chartreuse};
+}
+
+/* Outline buttons (Details, Hide diagram) are compiled with the default cyan $info */
+.btn-outline-info {
+  --bs-btn-color: #{$light-200};
+  --bs-btn-border-color: #{grey(40%)};
+  --bs-btn-hover-color: #{$ink};
+  --bs-btn-hover-bg: #{$chartreuse};
+  --bs-btn-hover-border-color: #{$chartreuse};
+  --bs-btn-focus-shadow-rgb: 226, 255, 0;
+  --bs-btn-disabled-color: #{$light-200};
+  --bs-btn-disabled-border-color: #{grey(40%)};
+}
+
+/* ── Blocks ── */
+
+/* Mined blocks: quiet charcoal with a hairline outline, except blocks MARA Pool mined,
+   which turn solid chartreuse with ink text. The block's inline gradient reads
+   --secondary (empty space), --mainnet-alt and --primary (filled space), so redefining
+   them on a block recolours it. */
+app-blockchain-blocks {
+  --secondary: #{grey(5%)};
+  --mainnet-alt: #{grey(13%)};
+  --primary: #{grey(10%)};
+}
+
+app-blockchain-blocks .bitcoin-block.mined-block {
+  box-shadow: inset 0 0 0 1px #{rgba($light-100, 0.18)};
+}
+
+app-blockchain-blocks .bitcoin-block:has(> .animated #{$mara-pool-link}) {
+  --secondary: #{color.mix($chartreuse, $light-100, 45%)};
+  --mainnet-alt: #{$chartreuse};
+  --primary: #{color.mix($chartreuse, $ink, 85%)};
+  --block-top: #{color.mix($chartreuse, $ink, 72%)};
+  --block-side: #{color.mix($chartreuse, $ink, 48%)};
+}
+
+app-blockchain-blocks .bitcoin-block.mined-block:has(> .animated #{$mara-pool-link}) {
+  box-shadow: none;
+}
+
+app-blockchain-blocks .bitcoin-block:has(> .animated #{$mara-pool-link}) .block-body {
+  --fg: #{$ink};
+  --transparent-fg: #{rgba($ink, 0.75)};
+}
+
+app-blockchain-blocks .bitcoin-block:has(> .animated #{$mara-pool-link}) .block-body,
+app-blockchain-blocks .bitcoin-block:has(> .animated #{$mara-pool-link}) .block-body *,
+app-blockchain-blocks .bitcoin-block:has(> .animated #{$mara-pool-link}) .fee-span {
+  color: #{$ink};
+}
+
+app-blockchain-blocks #{$mara-pool-link}.badge {
+  background-color: #{$chartreuse} !important;
+}
+
+app-blockchain-blocks #{$mara-pool-link}.badge,
+app-blockchain-blocks #{$mara-pool-link}.badge * {
+  color: #{$ink} !important;
+}
+
+/* Projected blocks are filled with the MARA fee scale, which runs from the charcoal of
+   the mined blocks to chartreuse. Text switches to ink once a block's median fee
+   colour (exposed as --block-fee-color) is light. */
+app-mempool-blocks .bitcoin-block.mempool-block {
+  --block-text: #{'oklch(from var(--block-fee-color, #353532) clamp(0, (0.6 - l) * 1000, 1) 0 0)'};
+}
+
+app-mempool-blocks .mempool-block .block-body {
+  --fg: var(--block-text);
+  --transparent-fg: var(--block-text);
+  --yellow: var(--block-text);
+}
+
+app-mempool-blocks .mempool-block .block-body,
+app-mempool-blocks .mempool-block .block-body * {
+  color: var(--block-text);
+}
+
+/* Mempool memory usage bar: grey, then chartreuse as it fills; red stays red */
+.progress-bar.bg-success:not(#_) {
+  background-color: #{grey(45%)} !important;
+}
+
+.progress-bar.bg-warning:not(#_) {
+  /* deep enough for the white label that straddles the bar */
+  background-color: #{color.mix($chartreuse, $ink, 50%)} !important;
+}
+
+/* Keep Mempool Accelerator elements in the default purple */
+app-accelerate-checkout,
+app-accelerate-fee-graph,
+app-acceleration-timeline,
+app-acceleration-timeline-tooltip,
+.badge-accelerated,
+.accelerate,
+.accelerateDeepMempool,
+.btn-accelerate,
+td:has(> a[href$="#accelerator-pro"]) {
+  --tertiary: #6225b2;
+  --search-button: #4d2d77;
+  --search-button-border: #472a6e;
+  --search-button-focus: #533180;
+  --search-button-shadow: #7c58ab80;
+}
+
+/* ── Structure: the type, edges and texture of mara.com, foundation.mara.com and Slipstream ──
+   Fonts are not downloaded: JetBrains Mono (MARA's secondary face) is used when installed,
+   otherwise the system monospace font. */
+
+/* Faint dot grid behind the page, after the Slipstream wireframe. Panels keep solid
+   backgrounds, so data sits on flat colour. */
+body {
+  background-image: radial-gradient(#{rgba($light-100, 0.06)} 1px, transparent 1.6px);
+  background-size: 14px 14px;
+}
+
+.box, .card, .dropdown-menu, .modal-content, .form-control, .input-group-text, .badge, .btn {
+  border-radius: 0 !important;
+}
+
+.box, .card {
+  border: 1px solid #{$hairline};
+}
+
+/* Headings and labels in monospace, as on Slipstream */
+h1, h2, h3 {
+  font-family: $mono;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+h5.card-title, .card-title, .main-title, th, .table thead th, .nav-tabs .nav-link {
+  font-family: $mono;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+h5.card-title, .card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+app-global-footer .category:not(#_) {
+  font-family: $mono;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.title-block {
+  border-top: 2px solid #{grey(30%)} !important;
+}
